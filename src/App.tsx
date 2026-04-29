@@ -17,6 +17,7 @@ import AdminClients from "./pages/admin/AdminClients";
 import AdminMessages from "./pages/admin/AdminMessages";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminGallery from "./pages/admin/AdminGallery";
+import AdminReports from "./pages/admin/AdminReports";
 import { AdminLayout } from "./components/admin/AdminLayout";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="wiadomosci" element={<AdminMessages />} />
               <Route path="ustawienia" element={<AdminSettings />} />
               <Route path="galeria" element={<AdminGallery />} />
+              <Route path="raporty" element={<AdminReports />} />
               <Route path="uslugi" element={<AdminServices />} />
               <Route path="pracownicy" element={<AdminEmployees />} />
             </Route>

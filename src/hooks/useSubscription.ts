@@ -3,7 +3,6 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { salonConfig } from '@/config/salon';
 
-// Baza super-admina — wspólna dla wszystkich salonów
 const MASTER_CONFIG = {
   apiKey: 'AIzaSyAYaWfzN68_XQLCgXuD7HmWh4ecpGYYukc',
   authDomain: 'salon-beauty-de32a.firebaseapp.com',
@@ -14,45 +13,52 @@ const MASTER_CONFIG = {
 
 export type SubscriptionStatus = 'loading' | 'active' | 'inactive' | 'expired';
 
-export function useSubscription() {
-  const [status, setStatus] = useState<SubscriptionStatus>('loading');
+interface SubscriptionState {
+  status: SubscriptionStatus;
+  planId: string;
+}
+
+export function useSubscription(): SubscriptionState {
+  const [state, setState] = useState<SubscriptionState>({
+    status: 'loading',
+    planId: 'standard',
+  });
 
   useEffect(() => {
-    // Jeśli salon nie ma salonId — nie sprawdzamy (tryb developerski)
-    if (!(salonConfig as any).salonId) {
-      setStatus('active');
+    const salonId = (salonConfig as any).salonId;
+    if (!salonId) {
+      setState({ status: 'active', planId: 'pro' });
       return;
     }
 
-    // Inicjalizuj osobną instancję Firebase dla master bazy
-    const masterApp = getApps().find(a => a.name === 'master') 
+    const masterApp = getApps().find(a => a.name === 'master')
       || initializeApp(MASTER_CONFIG, 'master');
     const masterDb = getFirestore(masterApp);
 
-    const salonId = (salonConfig as any).salonId;
     const unsub = onSnapshot(
       doc(masterDb, 'superadmin_salons', salonId),
       (snap) => {
         if (!snap.exists()) {
-          setStatus('active'); // brak wpisu = nie blokuj (nowy salon)
+          setState({ status: 'active', planId: 'pro' });
           return;
         }
         const data = snap.data();
         const today = new Date().toISOString().split('T')[0];
-        
+        const planId = data.plan || 'standard';
+
         if (!data.active) {
-          setStatus('inactive');
+          setState({ status: 'inactive', planId });
         } else if (data.expiresAt && data.expiresAt < today) {
-          setStatus('expired');
+          setState({ status: 'expired', planId });
         } else {
-          setStatus('active');
+          setState({ status: 'active', planId });
         }
       },
-      () => setStatus('active') // błąd połączenia = nie blokuj
+      () => setState({ status: 'active', planId: 'pro' })
     );
 
     return unsub;
   }, []);
 
-  return status;
+  return state;
 }
