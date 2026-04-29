@@ -5,7 +5,7 @@
 
 export const salonConfig = {
   // ID używane do sprawdzania subskrypcji — musi zgadzać się z ID w panelu super-admina
-  salonId: 'majli-beauty',
+  salonId: 'majli-beauty-1777446801447',
 
   // ── Podstawowe info ──────────────────────────────────────────
   name: 'Majli Beauty',

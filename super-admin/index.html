@@ -21,8 +21,9 @@ const db = getFirestore(app);
 const SALONS_COL = collection(db, 'superadmin_salons');
 
 const ADMIN_LOGIN = 'admin';
-const ADMIN_PASS  = 'majlisuperadmin2026';
-const PLAN_PRICE  = { trial: 0, standard: 99, pro: 149 };
+const ADMIN_PASS  = 'admin';
+const PLAN_PRICE  = { trial: 0, standard: 89, standard_plus: 129, pro: 149 };
+const PLAN_LABEL  = { trial: 'Test 3ms (0 zł)', standard: 'Standard (89 zł)', standard_plus: 'Standard+ (129 zł)', pro: 'Pro (149 zł)' };
 
 let salons = [];
 
@@ -80,7 +81,7 @@ function renderAll() {
   const today = new Date().toISOString().split('T')[0];
   const active = salons.filter(s => s.active && (!s.expiresAt || s.expiresAt >= today) && s.plan !== 'trial').length;
   const trial  = salons.filter(s => s.plan === 'trial' && s.active).length;
-  const revenue = salons.filter(s => s.active && (!s.expiresAt || s.expiresAt >= today)).reduce((sum,s)=>sum+(PLAN_PRICE[s.plan]||0),0);
+  const revenue = salons.filter(s => s.active && (!s.expiresAt || s.expiresAt >= today) && s.plan !== 'trial').reduce((sum,s)=>sum+(PLAN_PRICE[s.plan]||0),0);
 
   document.getElementById('stat-total').textContent = salons.length;
   document.getElementById('stat-active').textContent = active;
@@ -104,18 +105,25 @@ function renderAll() {
     : salons.map(s=>`<tr>
         <td><strong>${s.name}</strong>${s.notes?`<br><small style="color:var(--muted)">${s.notes}</small>`:''}</td>
         <td><small style="color:var(--muted)">${s.email||'—'}<br>${s.phone||'—'}</small></td>
-        <td style="color:var(--muted)">${s.domain||'—'}</td>
-        <td>${s.plan}</td>
+        <td style="color:var(--muted);font-size:12px">${s.domain||'—'}</td>
+        <td>
+          <select onchange="updatePlan('${s.id}', this.value)"
+            style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:12px;font-family:inherit">
+            <option value="trial" ${s.plan==='trial'?'selected':''}>Test 3ms</option>
+            <option value="standard" ${s.plan==='standard'?'selected':''}>Standard</option>
+            <option value="standard_plus" ${s.plan==='standard_plus'?'selected':''}>Standard+</option>
+            <option value="pro" ${s.plan==='pro'?'selected':''}>Pro</option>
+          </select>
+        </td>
         <td>${badge(s)}</td>
         <td>
           <input type="date" value="${s.expiresAt||''}"
             onchange="updateExpiry('${s.id}', this.value)"
             style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:12px;font-family:inherit" />
         </td>
-        <td>
-          <button class="btn-sm ${s.active?'danger':''}" onclick="toggleActive('${s.id}', ${s.active})">
-            ${s.active ? 'Wyłącz' : 'Włącz'}
-          </button>
+        <td style="white-space:nowrap">
+          <button class="btn-sm" onclick="openEditModal('${s.id}')">Edytuj</button>
+          <button class="btn-sm ${s.active?'danger':''}" onclick="toggleActive('${s.id}', ${s.active})">${s.active?'Wyłącz':'Włącz'}</button>
           <button class="btn-sm danger" onclick="deleteSalon('${s.id}')">Usuń</button>
         </td>
       </tr>`).join('');
@@ -126,6 +134,10 @@ window.toggleActive = async (id, current) => {
   await updateDoc(doc(db, 'superadmin_salons', id), { active: !current });
 };
 
+window.updatePlan = async (id, plan) => {
+  await updateDoc(doc(db, 'superadmin_salons', id), { plan });
+};
+
 window.updateExpiry = async (id, date) => {
   await updateDoc(doc(db, 'superadmin_salons', id), { expiresAt: date });
 };
@@ -133,6 +145,42 @@ window.updateExpiry = async (id, date) => {
 window.deleteSalon = async (id) => {
   if (!confirm('Na pewno usunąć ten salon?')) return;
   await deleteDoc(doc(db, 'superadmin_salons', id));
+};
+
+// ── EDIT MODAL ──
+let editingId = null;
+
+window.openEditModal = (id) => {
+  const s = salons.find(x => x.id === id);
+  if (!s) return;
+  editingId = id;
+  document.getElementById('e-name').value = s.name || '';
+  document.getElementById('e-email').value = s.email || '';
+  document.getElementById('e-phone').value = s.phone || '';
+  document.getElementById('e-domain').value = s.domain || '';
+  document.getElementById('e-plan').value = s.plan || 'standard';
+  document.getElementById('e-expires').value = s.expiresAt || '';
+  document.getElementById('e-notes').value = s.notes || '';
+  document.getElementById('edit-modal').classList.add('open');
+};
+
+window.closeEditModal = () => {
+  document.getElementById('edit-modal').classList.remove('open');
+  editingId = null;
+};
+
+window.saveEdit = async () => {
+  if (!editingId) return;
+  await updateDoc(doc(db, 'superadmin_salons', editingId), {
+    name: document.getElementById('e-name').value.trim(),
+    email: document.getElementById('e-email').value.trim(),
+    phone: document.getElementById('e-phone').value.trim(),
+    domain: document.getElementById('e-domain').value.trim(),
+    plan: document.getElementById('e-plan').value,
+    expiresAt: document.getElementById('e-expires').value,
+    notes: document.getElementById('e-notes').value.trim(),
+  });
+  closeEditModal();
 };
 
 window.openAddModal = () => {
@@ -425,8 +473,9 @@ window.copyConfig = () => {
       <div class="form-field full"><label>Domena</label><input id="m-domain" placeholder="salon-anna.pl" /></div>
       <div class="form-field"><label>Plan</label>
         <select id="m-plan">
-          <option value="trial">Trial (0 zł)</option>
-          <option value="standard">Standard (99 zł/mies)</option>
+          <option value="trial">Test 3ms (0 zł)</option>
+          <option value="standard">Standard (89 zł/mies)</option>
+          <option value="standard_plus">Standard+ (129 zł/mies)</option>
           <option value="pro">Pro (149 zł/mies)</option>
         </select>
       </div>
@@ -436,6 +485,32 @@ window.copyConfig = () => {
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">Anuluj</button>
       <button class="btn-add" onclick="addSalon()">Dodaj salon</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h3>Edytuj salon</h3>
+    <div class="form-grid">
+      <div class="form-field full"><label>Nazwa salonu</label><input id="e-name" /></div>
+      <div class="form-field"><label>Email</label><input id="e-email" /></div>
+      <div class="form-field"><label>Telefon</label><input id="e-phone" /></div>
+      <div class="form-field full"><label>Domena</label><input id="e-domain" /></div>
+      <div class="form-field"><label>Plan</label>
+        <select id="e-plan">
+          <option value="trial">Test 3ms (0 zł)</option>
+          <option value="standard">Standard (89 zł/mies)</option>
+          <option value="standard_plus">Standard+ (129 zł/mies)</option>
+          <option value="pro">Pro (149 zł/mies)</option>
+        </select>
+      </div>
+      <div class="form-field"><label>Wygasa</label><input id="e-expires" type="date" /></div>
+      <div class="form-field full"><label>Notatki</label><input id="e-notes" /></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeEditModal()">Anuluj</button>
+      <button class="btn-add" onclick="saveEdit()">Zapisz zmiany</button>
     </div>
   </div>
 </div>
