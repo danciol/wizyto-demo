@@ -4,6 +4,9 @@
 // ═══════════════════════════════════════════════════════════════
 
 export const salonConfig = {
+  // ID używane do sprawdzania subskrypcji — musi zgadzać się z ID w panelu super-admina
+  salonId: 'majli-beauty',
+
   // ── Podstawowe info ──────────────────────────────────────────
   name: 'Majli Beauty',
   tagline: 'Profesjonalna pielęgnacja urody',
