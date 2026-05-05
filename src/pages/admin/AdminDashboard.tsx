@@ -97,12 +97,13 @@ const AdminDashboard = () => {
           const service = services.find(s => s.id === appt.serviceId);
           const employee = employees.find(e => e.id === appt.employeeId);
           if (employee && (employee as any).googleCalendarConnected) {
+            const calId = (employee as any).googleCalendarId || 'primary';
             const event = buildCalendarEvent({ date: appt.date, duration: appt.duration, clientName: appt.clientName, serviceName: service?.name });
             if (status === 'confirmed' && !appt.googleCalendarEventId) {
-              const eid = await createCalendarEvent(appt.employeeId, event);
+              const eid = await createCalendarEvent(appt.employeeId, event, calId);
               if (eid) await updateDoc(doc(db, 'appointments', id), { googleCalendarEventId: eid });
             } else if (status === 'cancelled' && appt.googleCalendarEventId) {
-              await deleteCalendarEvent(appt.employeeId, appt.googleCalendarEventId);
+              await deleteCalendarEvent(appt.employeeId, appt.googleCalendarEventId, calId);
               await updateDoc(doc(db, 'appointments', id), { googleCalendarEventId: null });
             }
           }

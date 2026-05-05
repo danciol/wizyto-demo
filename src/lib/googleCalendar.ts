@@ -94,10 +94,30 @@ export async function disconnectGoogleCalendar(employeeId: string): Promise<void
   await setDoc(doc(db, 'employees', employeeId), { googleCalendarConnected: false }, { merge: true });
 }
 
-export async function createCalendarEvent(employeeId: string, event: GoogleCalendarEvent): Promise<string | null> {
+export interface GoogleCalendarListEntry {
+  id: string;
+  summary: string;
+  primary?: boolean;
+  accessRole: string;
+}
+
+export async function listCalendars(employeeId: string): Promise<GoogleCalendarListEntry[]> {
+  const token = await getEmployeeToken(employeeId);
+  if (!token) return [];
+  const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.items || []).filter((c: GoogleCalendarListEntry) =>
+    c.accessRole === 'owner' || c.accessRole === 'writer'
+  );
+}
+
+export async function createCalendarEvent(employeeId: string, event: GoogleCalendarEvent, calendarId = 'primary'): Promise<string | null> {
   const token = await getEmployeeToken(employeeId);
   if (!token) return null;
-  const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(event),
@@ -106,10 +126,10 @@ export async function createCalendarEvent(employeeId: string, event: GoogleCalen
   return (await res.json()).id || null;
 }
 
-export async function updateCalendarEvent(employeeId: string, eventId: string, event: GoogleCalendarEvent): Promise<boolean> {
+export async function updateCalendarEvent(employeeId: string, eventId: string, event: GoogleCalendarEvent, calendarId = 'primary'): Promise<boolean> {
   const token = await getEmployeeToken(employeeId);
   if (!token) return false;
-  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(event),
@@ -117,10 +137,10 @@ export async function updateCalendarEvent(employeeId: string, eventId: string, e
   return res.ok;
 }
 
-export async function deleteCalendarEvent(employeeId: string, eventId: string): Promise<boolean> {
+export async function deleteCalendarEvent(employeeId: string, eventId: string, calendarId = 'primary'): Promise<boolean> {
   const token = await getEmployeeToken(employeeId);
   if (!token) return false;
-  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, {
     method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
   });
   return res.ok || res.status === 404;

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import type { Employee } from '@/data/services';
 import { useEmployees } from '@/hooks/useFirestore';
-import { Plus, Edit2, Trash2, User, Loader2, Calendar, Unlink } from 'lucide-react';
-import { authorizeGoogleCalendar, disconnectGoogleCalendar } from '@/lib/googleCalendar';
+import { Plus, Edit2, Trash2, User, Loader2, Calendar, Unlink, ChevronDown } from 'lucide-react';
+import { authorizeGoogleCalendar, disconnectGoogleCalendar, listCalendars, GoogleCalendarListEntry } from '@/lib/googleCalendar';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,6 +58,9 @@ const AdminEmployees = () => {
   const { employees, loading, addEmployee, updateEmployee, deleteEmployee } = useEmployees();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
+  const [calPickerEmpId, setCalPickerEmpId] = useState<string | null>(null);
+  const [calList, setCalList] = useState<GoogleCalendarListEntry[]>([]);
+  const [calPickerLoading, setCalPickerLoading] = useState(false);
   const [form, setForm] = useState<EmployeeForm>({
     name: '', role: 'pracownik', login: '', password: '',
     workingHours: { ...defaultWorkingHours }, daysOff: '', canViewCalendars: [],
@@ -186,20 +191,53 @@ const AdminEmployees = () => {
               </p>
             )}
 
-            <div className="mt-3 pt-3 border-t border-border">
+            <div className="mt-3 pt-3 border-t border-border space-y-2">
               {(emp as any).googleCalendarConnected ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-green-600 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5" /> Google Calendar połączony
-                  </span>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-destructive gap-1"
-                    onClick={async () => { try { await disconnectGoogleCalendar(emp.id); toast.success('Rozłączono'); } catch { toast.error('Błąd'); } }}>
-                    <Unlink className="w-3 h-3" /> Rozłącz
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-green-600 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5" /> Google Calendar połączony
+                    </span>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-destructive gap-1"
+                      onClick={async () => { try { await disconnectGoogleCalendar(emp.id); toast.success('Rozłączono'); } catch { toast.error('Błąd'); } }}>
+                      <Unlink className="w-3 h-3" /> Rozłącz
+                    </Button>
+                  </div>
+                  <Button variant="outline" size="sm" className="w-full h-7 text-xs gap-1.5"
+                    onClick={async () => {
+                      setCalPickerEmpId(emp.id);
+                      setCalPickerLoading(true);
+                      setCalList([]);
+                      const cals = await listCalendars(emp.id);
+                      setCalList(cals);
+                      setCalPickerLoading(false);
+                    }}>
+                    <ChevronDown className="w-3 h-3" />
+                    {(emp as any).googleCalendarId && (emp as any).googleCalendarId !== 'primary'
+                      ? 'Zmień kalendarz'
+                      : 'Wybierz kalendarz'}
                   </Button>
-                </div>
+                  {(emp as any).googleCalendarId && (emp as any).googleCalendarId !== 'primary' && (
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      Kalendarz: {(emp as any).googleCalendarName || (emp as any).googleCalendarId}
+                    </p>
+                  )}
+                </>
               ) : (
                 <Button variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5"
-                  onClick={async () => { try { const ok = await authorizeGoogleCalendar(emp.id); if (ok) toast.success('Połączono!'); else toast.error('Anulowano'); } catch (e: any) { toast.error(e.message || 'Błąd'); } }}>
+                  onClick={async () => {
+                    try {
+                      const ok = await authorizeGoogleCalendar(emp.id);
+                      if (!ok) { toast.error('Anulowano'); return; }
+                      toast.success('Połączono! Wybierz kalendarz.');
+                      setCalPickerEmpId(emp.id);
+                      setCalPickerLoading(true);
+                      setCalList([]);
+                      const cals = await listCalendars(emp.id);
+                      setCalList(cals);
+                      setCalPickerLoading(false);
+                    } catch (e: any) { toast.error(e.message || 'Błąd'); }
+                  }}>
                   <Calendar className="w-3.5 h-3.5" /> Połącz Google Calendar
                 </Button>
               )}
@@ -211,6 +249,44 @@ const AdminEmployees = () => {
       {employees.length === 0 && (
         <p className="text-center text-muted-foreground py-12">Brak pracowników. Dodaj pierwszego pracownika.</p>
       )}
+
+      <Dialog open={!!calPickerEmpId} onOpenChange={(o) => { if (!o) setCalPickerEmpId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-primary" /> Wybierz kalendarz
+            </DialogTitle>
+          </DialogHeader>
+          {calPickerLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            </div>
+          ) : calList.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Brak dostępnych kalendarzy</p>
+          ) : (
+            <div className="space-y-2 py-2">
+              {calList.map((cal) => (
+                <button
+                  key={cal.id}
+                  className="w-full text-left px-4 py-3 rounded-lg border border-border hover:bg-secondary/60 transition-colors text-sm"
+                  onClick={async () => {
+                    if (!calPickerEmpId) return;
+                    await updateDoc(doc(db, 'employees', calPickerEmpId), {
+                      googleCalendarId: cal.id,
+                      googleCalendarName: cal.summary,
+                    });
+                    toast.success(`Kalendarz: ${cal.summary}`);
+                    setCalPickerEmpId(null);
+                  }}
+                >
+                  <span className="font-medium">{cal.summary}</span>
+                  {cal.primary && <span className="ml-2 text-xs text-muted-foreground">(główny)</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">

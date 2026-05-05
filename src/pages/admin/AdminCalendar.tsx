@@ -119,15 +119,17 @@ const AdminCalendar = () => {
         notes: data.notes,
       });
 
+      const calId = (employee as any)?.googleCalendarId || 'primary';
+
       if (editingAppointment) {
         const { id, ...rest } = data;
         await updateAppointment(id, rest);
         toast.success('Wizyta zaktualizowana');
         if ((employee as any)?.googleCalendarConnected) {
           if (data.googleCalendarEventId) {
-            await updateCalendarEvent(data.employeeId, data.googleCalendarEventId, calEvent);
+            await updateCalendarEvent(data.employeeId, data.googleCalendarEventId, calEvent, calId);
           } else {
-            const eid = await createCalendarEvent(data.employeeId, calEvent);
+            const eid = await createCalendarEvent(data.employeeId, calEvent, calId);
             if (eid) await updateDoc(doc(db, 'appointments', id), { googleCalendarEventId: eid });
           }
         }
@@ -136,7 +138,7 @@ const AdminCalendar = () => {
         const newId = await addAppointment(rest);
         toast.success('Wizyta dodana');
         if ((employee as any)?.googleCalendarConnected) {
-          const eid = await createCalendarEvent(data.employeeId, calEvent);
+          const eid = await createCalendarEvent(data.employeeId, calEvent, calId);
           if (eid) await updateDoc(doc(db, 'appointments', newId), { googleCalendarEventId: eid });
         }
       }
@@ -149,7 +151,9 @@ const AdminCalendar = () => {
     try {
       const appt = appointments.find(a => a.id === id);
       if (appt?.googleCalendarEventId) {
-        await deleteCalendarEvent(appt.employeeId, appt.googleCalendarEventId);
+        const emp = employees.find(e => e.id === appt.employeeId);
+        const calId = (emp as any)?.googleCalendarId || 'primary';
+        await deleteCalendarEvent(appt.employeeId, appt.googleCalendarEventId, calId);
       }
       await deleteAppointment(id);
       toast.success('Wizyta usunięta');
