@@ -4,54 +4,47 @@
 // ═══════════════════════════════════════════════════════════════
 
 export const salonConfig = {
-  // ID używane do sprawdzania subskrypcji — musi zgadzać się z ID w panelu super-admina
-  salonId: 'majli-beauty-1777446801447',
+  salonId: 'wizyto-demo',
 
-  // ── Podstawowe info ──────────────────────────────────────────
-  name: 'Majli Beauty',
+  name: 'Bella Beauty Studio',
   tagline: 'Profesjonalna pielęgnacja urody',
   phone: '+48 123 456 789',
-  email: 'kontakt@majlibeauty.pl',
-  address: 'ul. Przykładowa 1, Warszawa',
-  city: 'Warszawa',
+  email: 'kontakt@bellabeauty.pl',
+  address: 'ul. Kwiatowa 12, Kraków',
+  city: 'Kraków',
 
-  // ── Kolorystyka (HSL bez nawiasów) ───────────────────────────
   colors: {
-    primary: '150 40% 35%',        // zielony
+    primary: '150 40% 35%',
     primaryDark: '150 40% 25%',
-    accent: '42 70% 50%',          // złoty
+    accent: '42 70% 50%',
     accentLight: '42 60% 70%',
     accentDark: '42 60% 35%',
     background: '120 15% 97%',
     secondary: '120 20% 92%',
   },
 
-  // ── Media społecznościowe ─────────────────────────────────────
   social: {
-    instagram: 'https://instagram.com/majlibeauty',
-    facebook: 'https://facebook.com/majlibeauty',
+    instagram: 'https://instagram.com/bellabeauty',
+    facebook: 'https://facebook.com/bellabeauty',
   },
 
-  // ── Firebase ─────────────────────────────────────────────────
   firebase: {
-    apiKey: 'AIzaSyAYaWfzN68_XQLCgXuD7HmWh4ecpGYYukc',
-    authDomain: 'salon-beauty-de32a.firebaseapp.com',
-    projectId: 'salon-beauty-de32a',
-    storageBucket: 'salon-beauty-de32a.firebasestorage.app',
-    appId: '1:864720825148:web:c923c76903e68192198c39',
+    apiKey: 'AIzaSyBfF6QU14ocgzEsDX6cZkWsilHHc6kiILk',
+    authDomain: 'wizyto-demo.firebaseapp.com',
+    projectId: 'wizyto-demo',
+    storageBucket: 'wizyto-demo.firebasestorage.app',
+    appId: '1:662975000360:web:45caa10ef9b13be0c9ea1d',
   },
 
-  // ── Cloudinary ───────────────────────────────────────────────
   cloudinary: {
     cloudName: 'dazjs69yk',
     uploadPreset: 'majli_gallery',
   },
 
-  // ── Subskrypcja (do weryfikacji przez super-admina) ──────────
   subscription: {
     active: true,
-    plan: 'standard',           // 'trial' | 'standard' | 'pro'
-    expiresAt: '2026-12-31',
+    plan: 'test',
+    expiresAt: '2027-12-31',
   },
 };
 
