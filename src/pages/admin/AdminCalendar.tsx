@@ -7,10 +7,6 @@ import { Appointment } from '@/data/services';
 import { useAppointments, useServices, useEmployees, useClients } from '@/hooks/useFirestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import AppointmentDialog, { formatPhoneNumber } from '@/components/admin/AppointmentDialog';
 import { NativeSelect } from '@/components/ui/native-select';
 
@@ -45,8 +41,6 @@ const AdminCalendar = () => {
   const { employees, loading: loadingE } = useEmployees();
   const { clients, addClient, updateClient } = useClients();
   const { employee: currentUser } = useAuth();
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
-
   const [apptDialogOpen, setApptDialogOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [newApptDate, setNewApptDate] = useState<Date | null>(null);
@@ -92,90 +86,6 @@ const AdminCalendar = () => {
         appointmentIds: [],
       });
     }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.name.endsWith('.ics')) { toast.error('Wybierz plik w formacie .ics'); return; }
-    try {
-      const text = await file.text();
-      setRawIcsText(text);
-      setSelectedEmployeeId(employees.length > 0 ? employees[0].id : '');
-      setShowImportDialog(true);
-      const events = parseICSFile(text, services, employees.length > 0 ? employees[0].id : '');
-      if (events.length === 0) { toast.error('Nie znaleziono wydarzeń w pliku'); setShowImportDialog(false); return; }
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-      const existingUIDs = new Set(appointments.map(a => a.googleCalendarEventId).filter(Boolean));
-      const newEvents = events.filter(ev => {
-        if (ev.googleCalendarEventId && existingUIDs.has(ev.googleCalendarEventId)) return false;
-        if (ev.date && new Date(ev.date) < oneMonthAgo) return false;
-        return true;
-      });
-      if (newEvents.length === 0) { toast.info('Brak nowych wydarzeń (starsze niż miesiąc pominięte)'); setShowImportDialog(false); return; }
-      setPendingImport(newEvents);
-    } catch { toast.error('Błąd podczas odczytywania pliku'); }
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleEmployeeChange = (empId: string) => {
-    setSelectedEmployeeId(empId);
-    if (rawIcsText) {
-      const events = parseICSFile(rawIcsText, services, empId);
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-      const existingUIDs = new Set(appointments.map(a => a.googleCalendarEventId).filter(Boolean));
-      const newEvents = events.filter(ev => {
-        if (ev.googleCalendarEventId && existingUIDs.has(ev.googleCalendarEventId)) return false;
-        if (ev.date && new Date(ev.date) < oneMonthAgo) return false;
-        return true;
-      });
-      setPendingImport(newEvents);
-    }
-  };
-
-  const confirmImport = async () => {
-    if (!selectedEmployeeId) { toast.error('Wybierz pracownika'); return; }
-    try {
-      let imported = 0;
-      const seenPhones = new Set(clients.map(c => normalizePhone(c.phone)).filter(p => p.length >= 9));
-      
-      for (const p of pendingImport) {
-        const apptData: Omit<Appointment, 'id'> = {
-          serviceId: p.serviceId || '',
-          employeeId: selectedEmployeeId,
-          clientName: p.clientName || 'Klient',
-          clientPhone: p.clientPhone ? formatPhoneNumber(p.clientPhone) : '',
-          clientEmail: p.clientEmail || '',
-          date: p.date || new Date().toISOString(),
-          duration: p.duration || 60,
-          status: (p.status as Appointment['status']) || 'confirmed',
-          createdAt: p.createdAt || new Date().toISOString(),
-        };
-        if (p.googleCalendarEventId) apptData.googleCalendarEventId = p.googleCalendarEventId;
-        if (p.notes) apptData.notes = p.notes;
-        await addAppointment(apptData);
-        imported++;
-
-        // Auto-create client if not exists
-        const phone = normalizePhone(p.clientPhone || '');
-        const name = p.clientName || '';
-        if (name && phone.length >= 9 && !seenPhones.has(phone)) {
-          await addClient({
-            name,
-            phone: formatPhoneNumber(phone),
-            email: p.clientEmail || '',
-            appointmentIds: [],
-          });
-          seenPhones.add(phone);
-        }
-      }
-      setPendingImport([]);
-      setShowImportDialog(false);
-      setRawIcsText('');
-      toast.success(`Zaimportowano ${imported} wydarzeń`);
-    } catch { toast.error('Błąd importu'); }
   };
 
   const handleCellClick = (day: Date, hour: number) => {
@@ -434,67 +344,6 @@ const AdminCalendar = () => {
         onDelete={handleDeleteAppointment}
       />
 
-      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileUp className="w-5 h-5 text-primary" />
-              Import kalendarza
-            </DialogTitle>
-            <DialogDescription>
-              Wybierz pracownika i zaimportuj wydarzenia
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <Label className="mb-1.5 block">Pracownik</Label>
-              <NativeSelect value={selectedEmployeeId} onChange={(e) => handleEmployeeChange(e.target.value)}>
-                <option value="">Wybierz pracownika</option>
-                  {employees.map(emp => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                  ))}
-              </NativeSelect>
-            </div>
-
-            <div>
-              <p className="text-sm font-medium mb-2">
-                Znaleziono {pendingImport.length} wydarzeń do zaimportowania
-              </p>
-              <div className="max-h-[250px] overflow-y-auto space-y-2">
-                {pendingImport.map((event, i) => {
-                  const matchedService = services.find(s => s.id === event.serviceId);
-                  return (
-                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50 text-sm">
-                      <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground">{event.clientName}</p>
-                        {event.clientPhone && (
-                          <p className="text-xs text-muted-foreground">📞 {event.clientPhone}</p>
-                        )}
-                        {matchedService && (
-                          <p className="text-xs text-primary/80">💅 {matchedService.name}</p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          {event.date && format(new Date(event.date), 'EEEE, d MMMM yyyy · HH:mm', { locale: pl })}
-                          {' · '}{event.duration} min
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => { setShowImportDialog(false); setRawIcsText(''); }}>Anuluj</Button>
-            <Button onClick={confirmImport} disabled={!selectedEmployeeId}>
-              Importuj {pendingImport.length} wydarzeń
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
