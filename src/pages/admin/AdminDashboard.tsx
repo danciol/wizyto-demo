@@ -79,7 +79,7 @@ const AdminDashboard = () => {
     if (!appt.clientPhone) { toast.error('Brak numeru telefonu'); return; }
     const service = services.find(s => s.id === appt.serviceId);
     const date = format(new Date(appt.date), "d MMMM 'o godz.' HH:mm", { locale: pl });
-    const text = `Przypomnienie: wizyta w salonie Majli Beauty ${date} (${service?.name || 'wizyta'}). Do zobaczenia! 💅`;
+    const text = `Przypomnienie: wizyta w salonie Bella Beauty Studio ${date} (${service?.name || 'wizyta'}). Do zobaczenia! 💅`;
     window.open(`sms:${appt.clientPhone}?body=${encodeURIComponent(text)}`, '_blank');
   };
 

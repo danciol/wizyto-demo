@@ -20,7 +20,7 @@ export function AboutSection() {
           className="text-center mb-16"
         >
           <p className="text-primary font-medium tracking-widest uppercase text-sm mb-3">O nas</p>
-          <h2 className="section-heading mb-4">Witaj w Majli Beauty</h2>
+          <h2 className="section-heading mb-4">Witaj w Bella Beauty Studio</h2>
           <p className="section-subheading">
             Nasz salon to miejsce, gdzie piękno spotyka się z profesjonalizmem.
             Zadbamy o Ciebie od stóp do głów.

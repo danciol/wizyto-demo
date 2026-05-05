@@ -4,7 +4,7 @@ import { Phone, Mail, MapPin, Clock, Instagram } from 'lucide-react';
 const info = [
   { icon: MapPin, label: 'Adres', value: 'ul. Piękna 15, 00-001 Warszawa' },
   { icon: Phone, label: 'Telefon', value: '+48 000 000 000' },
-  { icon: Mail, label: 'Email', value: 'kontakt@majlibeauty.pl' },
+  { icon: Mail, label: 'Email', value: 'kontakt@bellabeauty.pl' },
   { icon: Clock, label: 'Godziny', value: 'Pon-Pt: 9:00-18:00 | Sob: 9:00-14:00' },
 ];
 
@@ -58,7 +58,7 @@ export function ContactSection() {
             className="glass-card overflow-hidden rounded-xl h-72 md:h-full min-h-[280px]"
           >
             <iframe
-              title="Lokalizacja Majli Beauty"
+              title="Lokalizacja Bella Beauty Studio"
               src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2443.916!2d21.012!3d52.229!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNTLCsDEzJzQ0LjQiTiAyMcKwMDAnNDMuMiJF!5e0!3m2!1spl!2spl!4v1"
               className="w-full h-full border-0"
               allowFullScreen

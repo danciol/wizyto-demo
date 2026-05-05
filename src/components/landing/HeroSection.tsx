@@ -14,7 +14,7 @@ export function HeroSection({ onBooking }: HeroProps) {
       <div className="absolute inset-0">
         <img
           src={heroImage}
-          alt="Wnętrze salonu Majli Beauty"
+          alt="Wnętrze salonu Bella Beauty Studio"
           className="w-full h-full object-cover"
           width={1920}
           height={1080}
@@ -39,9 +39,9 @@ export function HeroSection({ onBooking }: HeroProps) {
             Salon Kosmetyczny
           </motion.p>
           <h1 className="font-heading text-5xl md:text-6xl lg:text-7xl font-bold text-cream leading-tight mb-6">
-            Majli
+            Bella
             <br />
-            <span className="text-gold">Beauty</span>
+            <span className="text-gold">Beauty Studio</span>
           </h1>
           <p className="text-lg md:text-xl text-cream/80 mb-8 max-w-lg font-light leading-relaxed">
             Profesjonalne zabiegi kosmetyczne w eleganckim wnętrzu.

@@ -30,7 +30,7 @@ const AdminLogin = () => {
       <div className="glass-card p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="font-heading text-3xl font-bold text-primary mb-2">
-            {IS_DEMO ? 'Wizyto Demo' : 'Majli Beauty'}
+            {IS_DEMO ? 'Wizyto Demo' : 'Bella Beauty Studio'}
           </h1>
           <p className="text-muted-foreground text-sm">Panel pracownika</p>
         </div>

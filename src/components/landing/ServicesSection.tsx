@@ -27,7 +27,7 @@ export function ServicesSection({ onBookService }: Props) {
           <p className="text-primary font-medium tracking-widest uppercase text-sm mb-3">Usługi</p>
           <h2 className="section-heading mb-4">Nasze zabiegi</h2>
           <p className="section-subheading">
-            Odkryj pełną ofertę zabiegów kosmetycznych Majli Beauty
+            Odkryj pełną ofertę zabiegów kosmetycznych Bella Beauty Studio
           </p>
         </motion.div>
 

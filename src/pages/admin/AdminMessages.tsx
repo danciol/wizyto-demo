@@ -9,19 +9,19 @@ import { toast } from 'sonner';
 const TEMPLATES = [
   {
     label: '📢 Promocja',
-    text: 'Hej! Mamy dla Ciebie wyjątkową ofertę w salonie Majli Beauty. Zadzwoń lub zarezerwuj online 🌸',
+    text: 'Hej! Mamy dla Ciebie wyjątkową ofertę w salonie Bella Beauty Studio. Zadzwoń lub zarezerwuj online 🌸',
   },
   {
     label: '🎉 Urodziny',
-    text: 'Wszystkiego najlepszego! 🎂 Z okazji urodzin mamy dla Ciebie specjalną niespodziankę w salonie Majli Beauty. Zapraszamy!',
+    text: 'Wszystkiego najlepszego! 🎂 Z okazji urodzin mamy dla Ciebie specjalną niespodziankę w salonie Bella Beauty Studio. Zapraszamy!',
   },
   {
     label: '🔔 Przypomnienie',
-    text: 'Przypominamy o wizycie w salonie Majli Beauty. Czekamy na Ciebie! W razie pytań zadzwoń do nas.',
+    text: 'Przypominamy o wizycie w salonie Bella Beauty Studio. Czekamy na Ciebie! W razie pytań zadzwoń do nas.',
   },
   {
     label: '💌 Powrót',
-    text: 'Dawno Cię u nas nie było! Zapraszamy do salonu Majli Beauty — mamy nowe usługi, które Cię zachwycą 💅',
+    text: 'Dawno Cię u nas nie było! Zapraszamy do salonu Bella Beauty Studio — mamy nowe usługi, które Cię zachwycą 💅',
   },
 ];
 
