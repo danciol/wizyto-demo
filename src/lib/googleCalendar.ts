@@ -8,6 +8,13 @@ export interface GoogleCalendarEvent {
   end: { dateTime: string; timeZone: string };
 }
 
+export interface GoogleCalendarListEntry {
+  id: string;
+  summary: string;
+  primary?: boolean;
+  accessRole: string;
+}
+
 declare global {
   interface Window {
     google: {
@@ -41,12 +48,12 @@ function loadGisScript(): Promise<void> {
   });
 }
 
-async function getEmployeeToken(employeeId: string): Promise<string | null> {
-  const snap = await getDoc(doc(db, 'employee_google_tokens', employeeId));
+async function getSalonToken(): Promise<string | null> {
+  const snap = await getDoc(doc(db, 'settings', 'global'));
   if (!snap.exists()) return null;
   const data = snap.data();
-  if (data.expiresAt && data.expiresAt < Date.now()) return null;
-  return data.accessToken || null;
+  if (data.googleTokenExpiry && data.googleTokenExpiry < Date.now()) return null;
+  return data.googleAccessToken || null;
 }
 
 async function getClientId(): Promise<string | null> {
@@ -54,7 +61,7 @@ async function getClientId(): Promise<string | null> {
   return snap.exists() ? snap.data().googleClientId || null : null;
 }
 
-export async function authorizeGoogleCalendar(employeeId: string): Promise<boolean> {
+export async function authorizeSalonAccount(): Promise<boolean> {
   const clientId = await getClientId();
   if (!clientId) throw new Error('Brak Google Client ID w ustawieniach');
 
@@ -63,17 +70,16 @@ export async function authorizeGoogleCalendar(employeeId: string): Promise<boole
   return new Promise((resolve) => {
     const tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/calendar.events',
+      scope: 'https://www.googleapis.com/auth/calendar',
       callback: async (response) => {
         if (response.error || !response.access_token) { resolve(false); return; }
         const expiresIn = parseInt(response.expires_in || '3600');
-        await setDoc(doc(db, 'employee_google_tokens', employeeId), {
-          accessToken: response.access_token,
-          expiresAt: Date.now() + expiresIn * 1000,
-          clientId,
-          connectedAt: new Date().toISOString(),
+        await setDoc(doc(db, 'settings', 'global'), {
+          googleAccessToken: response.access_token,
+          googleTokenExpiry: Date.now() + expiresIn * 1000,
+          googleConnected: true,
+          googleConnectedAt: new Date().toISOString(),
         }, { merge: true });
-        await setDoc(doc(db, 'employees', employeeId), { googleCalendarConnected: true }, { merge: true });
         resolve(true);
       },
       error_callback: () => resolve(false),
@@ -82,27 +88,23 @@ export async function authorizeGoogleCalendar(employeeId: string): Promise<boole
   });
 }
 
-export async function disconnectGoogleCalendar(employeeId: string): Promise<void> {
-  const snap = await getDoc(doc(db, 'employee_google_tokens', employeeId));
+export async function disconnectSalonAccount(): Promise<void> {
+  const snap = await getDoc(doc(db, 'settings', 'global'));
   if (snap.exists()) {
-    const token = snap.data().accessToken;
+    const token = snap.data().googleAccessToken;
     if (token && window.google?.accounts?.oauth2) {
       window.google.accounts.oauth2.revoke(token, () => {});
     }
   }
-  await setDoc(doc(db, 'employee_google_tokens', employeeId), { accessToken: null, expiresAt: 0 }, { merge: true });
-  await setDoc(doc(db, 'employees', employeeId), { googleCalendarConnected: false }, { merge: true });
+  await setDoc(doc(db, 'settings', 'global'), {
+    googleAccessToken: null,
+    googleTokenExpiry: 0,
+    googleConnected: false,
+  }, { merge: true });
 }
 
-export interface GoogleCalendarListEntry {
-  id: string;
-  summary: string;
-  primary?: boolean;
-  accessRole: string;
-}
-
-export async function listCalendars(employeeId: string): Promise<GoogleCalendarListEntry[]> {
-  const token = await getEmployeeToken(employeeId);
+export async function listCalendars(): Promise<GoogleCalendarListEntry[]> {
+  const token = await getSalonToken();
   if (!token) return [];
   const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
     headers: { Authorization: `Bearer ${token}` },
@@ -114,8 +116,8 @@ export async function listCalendars(employeeId: string): Promise<GoogleCalendarL
   );
 }
 
-export async function createCalendarEvent(employeeId: string, event: GoogleCalendarEvent, calendarId = 'primary'): Promise<string | null> {
-  const token = await getEmployeeToken(employeeId);
+export async function createCalendarEvent(calendarId: string, event: GoogleCalendarEvent): Promise<string | null> {
+  const token = await getSalonToken();
   if (!token) return null;
   const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
     method: 'POST',
@@ -126,8 +128,8 @@ export async function createCalendarEvent(employeeId: string, event: GoogleCalen
   return (await res.json()).id || null;
 }
 
-export async function updateCalendarEvent(employeeId: string, eventId: string, event: GoogleCalendarEvent, calendarId = 'primary'): Promise<boolean> {
-  const token = await getEmployeeToken(employeeId);
+export async function updateCalendarEvent(calendarId: string, eventId: string, event: GoogleCalendarEvent): Promise<boolean> {
+  const token = await getSalonToken();
   if (!token) return false;
   const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, {
     method: 'PUT',
@@ -137,8 +139,8 @@ export async function updateCalendarEvent(employeeId: string, eventId: string, e
   return res.ok;
 }
 
-export async function deleteCalendarEvent(employeeId: string, eventId: string, calendarId = 'primary'): Promise<boolean> {
-  const token = await getEmployeeToken(employeeId);
+export async function deleteCalendarEvent(calendarId: string, eventId: string): Promise<boolean> {
+  const token = await getSalonToken();
   if (!token) return false;
   const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, {
     method: 'DELETE', headers: { Authorization: `Bearer ${token}` },

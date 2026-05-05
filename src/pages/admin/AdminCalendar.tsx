@@ -119,17 +119,17 @@ const AdminCalendar = () => {
         notes: data.notes,
       });
 
-      const calId = (employee as any)?.googleCalendarId || 'primary';
+      const calId = (employee as any)?.googleCalendarId;
 
       if (editingAppointment) {
         const { id, ...rest } = data;
         await updateAppointment(id, rest);
         toast.success('Wizyta zaktualizowana');
-        if ((employee as any)?.googleCalendarConnected) {
+        if (calId) {
           if (data.googleCalendarEventId) {
-            await updateCalendarEvent(data.employeeId, data.googleCalendarEventId, calEvent, calId);
+            await updateCalendarEvent(calId, data.googleCalendarEventId, calEvent);
           } else {
-            const eid = await createCalendarEvent(data.employeeId, calEvent, calId);
+            const eid = await createCalendarEvent(calId, calEvent);
             if (eid) await updateDoc(doc(db, 'appointments', id), { googleCalendarEventId: eid });
           }
         }
@@ -137,8 +137,8 @@ const AdminCalendar = () => {
         const { id: _id, ...rest } = data;
         const newId = await addAppointment(rest);
         toast.success('Wizyta dodana');
-        if ((employee as any)?.googleCalendarConnected) {
-          const eid = await createCalendarEvent(data.employeeId, calEvent, calId);
+        if (calId) {
+          const eid = await createCalendarEvent(calId, calEvent);
           if (eid) await updateDoc(doc(db, 'appointments', newId), { googleCalendarEventId: eid });
         }
       }
@@ -152,8 +152,8 @@ const AdminCalendar = () => {
       const appt = appointments.find(a => a.id === id);
       if (appt?.googleCalendarEventId) {
         const emp = employees.find(e => e.id === appt.employeeId);
-        const calId = (emp as any)?.googleCalendarId || 'primary';
-        await deleteCalendarEvent(appt.employeeId, appt.googleCalendarEventId, calId);
+        const calId = (emp as any)?.googleCalendarId;
+        if (calId) await deleteCalendarEvent(calId, appt.googleCalendarEventId);
       }
       await deleteAppointment(id);
       toast.success('Wizyta usunięta');

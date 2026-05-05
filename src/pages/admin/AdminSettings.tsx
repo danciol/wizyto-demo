@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Settings, CreditCard, Loader2, Save, Calendar, ExternalLink } from 'lucide-react';
+import { Settings, CreditCard, Loader2, Save, Calendar, ExternalLink, Link2, Unlink } from 'lucide-react';
 import { useSettings } from '@/hooks/useFirestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { authorizeSalonAccount, disconnectSalonAccount } from '@/lib/googleCalendar';
 
 const AdminSettings = () => {
-  const { depositAmount, googleClientId, loading, saveDepositAmount, saveGoogleClientId } = useSettings();
+  const { depositAmount, googleClientId, googleConnected, loading, saveDepositAmount, saveGoogleClientId } = useSettings();
+  const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [depositValue, setDepositValue] = useState('');
   const [clientIdValue, setClientIdValue] = useState('');
   const [savingDeposit, setSavingDeposit] = useState(false);
@@ -80,8 +82,40 @@ const AdminSettings = () => {
         {googleClientId ? (
           <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs font-mono break-all">✅ Client ID: {googleClientId}</div>
         ) : (
-          <div className="p-3 rounded-lg bg-secondary/50 border border-border text-sm text-muted-foreground">ℹ️ Brak Client ID — pracownicy nie mogą połączyć kalendarza Google</div>
+          <div className="p-3 rounded-lg bg-secondary/50 border border-border text-sm text-muted-foreground">ℹ️ Brak Client ID — połączenie Google niemożliwe</div>
         )}
+
+        <div className="pt-2 border-t border-border space-y-3">
+          <p className="text-sm font-medium">Konto Google salonu</p>
+          <p className="text-xs text-muted-foreground">Zaloguj się kontem Google salonu — pracownicy udostępniają mu swoje kalendarze, a wizyty są zapisywane automatycznie.</p>
+          {googleConnected ? (
+            <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+              <span className="text-sm text-green-700 dark:text-green-400 flex items-center gap-2">
+                <Link2 className="w-4 h-4" /> Konto Google połączone
+              </span>
+              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-destructive gap-1"
+                onClick={async () => {
+                  try { await disconnectSalonAccount(); toast.success('Rozłączono konto Google'); }
+                  catch { toast.error('Błąd rozłączania'); }
+                }}>
+                <Unlink className="w-3 h-3" /> Rozłącz
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={async () => {
+              if (!googleClientId) { toast.error('Najpierw zapisz Google Client ID'); return; }
+              setConnectingGoogle(true);
+              try {
+                const ok = await authorizeSalonAccount();
+                if (ok) toast.success('Konto Google połączone!');
+                else toast.error('Anulowano');
+              } catch (e: any) { toast.error(e.message || 'Błąd'); }
+              finally { setConnectingGoogle(false); }
+            }} disabled={connectingGoogle || !googleClientId} className="gap-2">
+              {connectingGoogle ? <><Loader2 className="w-4 h-4 animate-spin" />Łączę...</> : <><Calendar className="w-4 h-4" />Połącz konto Google</>}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
