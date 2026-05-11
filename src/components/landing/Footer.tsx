@@ -7,6 +7,7 @@ export function Footer() {
         <p className="font-heading text-2xl font-bold text-background mb-2">Bella Beauty Studio</p>
         <p className="text-sm mb-4">Salon Kosmetyczny &middot; Warszawa</p>
         <div className="flex items-center justify-center gap-4 mb-4">
+          <Link to="/polityka-prywatnosci" className="text-xs text-background/50 hover:text-background/80 transition-colors">Polityka prywatności</Link>
           <Link to="/admin/login" className="text-xs text-background/40 hover:text-background/70 transition-colors underline">
             Panel pracownika
           </Link>

@@ -40,6 +40,7 @@ interface EmployeeForm {
   role: string;
   login: string;
   password: string;
+  phone: string;
   workingHours: Record<string, string>;
   daysOff: string;
   canViewCalendars: string[];
@@ -64,14 +65,14 @@ const AdminEmployees = () => {
   const [calList, setCalList] = useState<GoogleCalendarListEntry[]>([]);
   const [calPickerLoading, setCalPickerLoading] = useState(false);
   const [form, setForm] = useState<EmployeeForm>({
-    name: '', role: 'pracownik', login: '', password: '',
+    name: '', role: 'pracownik', login: '', password: '', phone: '',
     workingHours: { ...defaultWorkingHours }, daysOff: '', canViewCalendars: [],
   });
 
   const openNew = () => {
     setEditing(null);
     setForm({
-      name: '', role: 'pracownik', login: '', password: '',
+      name: '', role: 'pracownik', login: '', password: '', phone: '',
       workingHours: { ...defaultWorkingHours }, daysOff: '', canViewCalendars: [],
     });
     setDialogOpen(true);
@@ -89,6 +90,7 @@ const AdminEmployees = () => {
       role: e.role || 'pracownik',
       login: e.login || '',
       password: e.password || '',
+      phone: e.phone || '',
       workingHours: wh,
       daysOff: (e.daysOff || []).join(', '),
       canViewCalendars: e.canViewCalendars || [],
@@ -109,6 +111,7 @@ const AdminEmployees = () => {
         role: form.role,
         login: form.login,
         password: form.password,
+        phone: form.phone.trim() || undefined,
         workingHours: form.workingHours,
         daysOff,
         canViewCalendars: form.canViewCalendars,
@@ -316,6 +319,15 @@ const AdminEmployees = () => {
                 <Label>Hasło</Label>
                 <Input value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
               </div>
+            </div>
+
+            <div>
+              <Label>Telefon pracownika (do powiadomień SMS)</Label>
+              <Input
+                value={form.phone}
+                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                placeholder="+48 600 100 200"
+              />
             </div>
 
             <div>

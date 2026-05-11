@@ -7,7 +7,7 @@ interface AuthContextType {
   employee: Employee | null;
   isAuthenticated: boolean;
   loading: boolean;
-  login: (login: string, password: string) => Promise<boolean>;
+  login: (login: string, password: string, remember?: boolean) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -25,32 +25,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore session from localStorage
   useEffect(() => {
-    const storedId = localStorage.getItem(STORAGE_KEY);
-    if (!storedId) {
-      setLoading(false);
-      return;
-    }
-    // Verify employee still exists
-    const verify = async () => {
+    const stored = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY);
+    if (stored) {
       try {
-        const snap = await getDocs(collection(db, 'employees'));
-        const found = snap.docs.find(d => d.id === storedId);
-        if (found) {
-          setEmployee({ ...found.data(), id: found.id } as Employee);
-        } else {
-          localStorage.removeItem(STORAGE_KEY);
-        }
+        setEmployee(JSON.parse(stored) as Employee);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem(STORAGE_KEY);
       }
-      setLoading(false);
-    };
-    verify();
+    }
+    setLoading(false);
   }, []);
 
-  const login = async (loginVal: string, passwordVal: string): Promise<boolean> => {
+  const login = async (loginVal: string, passwordVal: string, remember = false): Promise<boolean> => {
     try {
       const q = query(
         collection(db, 'employees'),
@@ -62,7 +50,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const doc = snap.docs[0];
       const emp = { ...doc.data(), id: doc.id } as Employee;
       setEmployee(emp);
-      localStorage.setItem(STORAGE_KEY, emp.id);
+      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
+      const serialized = JSON.stringify(emp);
+      if (remember) {
+        localStorage.setItem(STORAGE_KEY, serialized);
+      } else {
+        sessionStorage.setItem(STORAGE_KEY, serialized);
+      }
       return true;
     } catch {
       return false;
@@ -72,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setEmployee(null);
     localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
   };
 
   return (

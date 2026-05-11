@@ -27,10 +27,11 @@ interface AppointmentDialogProps {
   employees: Employee[];
   onSave: (data: Appointment) => void;
   onDelete?: (id: string) => void;
+  hidePhone?: boolean;
 }
 
 const AppointmentDialog = ({
-  open, onOpenChange, appointment, defaultDate, services, employees, onSave, onDelete,
+  open, onOpenChange, appointment, defaultDate, services, employees, onSave, onDelete, hidePhone,
 }: AppointmentDialogProps) => {
   const isEdit = !!appointment;
 
@@ -77,12 +78,16 @@ const AppointmentDialog = ({
   const handleSave = () => {
     const dateTime = new Date(`${date}T${time}`);
 
+    const resolvedPhone = (hidePhone && isEdit)
+      ? (appointment?.clientPhone || '')
+      : clientPhone.replace(/-/g, '').replace(/\s/g, '');
+
     const data: Appointment = {
       id: appointment?.id || 'new-' + Date.now(),
       serviceId,
       employeeId,
       clientName: clientName || 'Nowa wizyta',
-      clientPhone: clientPhone.replace(/-/g, '').replace(/\s/g, ''),
+      clientPhone: resolvedPhone,
       clientEmail,
       date: dateTime.toISOString(),
       duration: selectedService?.duration || duration,
@@ -177,12 +182,18 @@ const AppointmentDialog = ({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="appt-phone">Telefon</Label>
-              <Input
-                id="appt-phone"
-                placeholder="xxx-xxx-xxx"
-                value={clientPhone}
-                onChange={e => setClientPhone(formatPhoneNumber(e.target.value))}
-              />
+              {hidePhone && isEdit ? (
+                <div className="flex items-center h-10 px-3 rounded-md border border-border bg-secondary/50 text-sm text-muted-foreground tracking-widest">
+                  ••• ••• •••
+                </div>
+              ) : (
+                <Input
+                  id="appt-phone"
+                  placeholder="xxx-xxx-xxx"
+                  value={clientPhone}
+                  onChange={e => setClientPhone(formatPhoneNumber(e.target.value))}
+                />
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="appt-email">Email</Label>

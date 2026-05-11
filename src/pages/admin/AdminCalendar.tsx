@@ -4,8 +4,10 @@ import { pl } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Appointment } from '@/data/services';
-import { useAppointments, useServices, useEmployees, useClients } from '@/hooks/useFirestore';
+import { useAppointments, useServices, useEmployees, useClients, useTimeBlocks } from '@/hooks/useFirestore';
+import type { TimeBlock } from '@/hooks/useFirestore';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePlan } from '@/hooks/usePlan';
 import { toast } from 'sonner';
 import AppointmentDialog, { formatPhoneNumber } from '@/components/admin/AppointmentDialog';
 import { NativeSelect } from '@/components/ui/native-select';
@@ -43,7 +45,9 @@ const AdminCalendar = () => {
   const { services, loading: loadingS } = useServices();
   const { employees, loading: loadingE } = useEmployees();
   const { clients, addClient, updateClient } = useClients();
+  const { timeBlocks } = useTimeBlocks();
   const { employee: currentUser } = useAuth();
+  const { can } = usePlan();
   const [apptDialogOpen, setApptDialogOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [newApptDate, setNewApptDate] = useState<Date | null>(null);
@@ -169,6 +173,49 @@ const AdminCalendar = () => {
     return filteredAppointments.filter(a => isSameDay(new Date(a.date), day));
   };
 
+  const ApptCard = ({ a, topPx, heightPx, widthPct, leftPct }: {
+    a: Appointment; topPx: number; heightPx: number; widthPct: number; leftPct: number;
+  }) => {
+    const aDate = new Date(a.date);
+    const service = services.find(s => s.id === a.serviceId);
+    const employee = employees.find(e => e.id === a.employeeId);
+    const empColor = getEmployeeColor(a.employeeId, employees);
+    const h = Math.max(heightPx, 24);
+    return (
+      <div
+        onClick={(e) => handleAppointmentClick(e, a)}
+        className={`absolute z-10 rounded-md px-1.5 py-1 text-xs cursor-pointer border-l-[3px] transition-all hover:shadow-md hover:z-20 overflow-hidden ${empColor.bg} ${empColor.border} ${empColor.text}`}
+        style={{
+          top: `${topPx}px`,
+          height: `${h}px`,
+          left: `calc(${leftPct}% + 1px)`,
+          width: `calc(${widthPct}% - 3px)`,
+        }}
+        title={`${a.clientName}${service ? ` – ${service.name}` : ''}${a.notes ? `\n${a.notes}` : ''}`}
+      >
+        <p className="font-bold truncate leading-tight">{a.clientName}</p>
+        {h > 28 && <p className="truncate opacity-75 leading-tight">{format(aDate, 'HH:mm')} · {service?.name || 'Wizyta'}</p>}
+        {h > 48 && a.clientPhone && !(can('phone_protection') && !isAdmin) && <p className="truncate opacity-65 leading-tight">📞 {formatPhoneNumber(a.clientPhone)}</p>}
+        {h > 64 && a.notes && <p className="truncate opacity-60 leading-tight italic">📝 {a.notes}</p>}
+        {h > 80 && employee && <p className="truncate opacity-50 leading-tight">{employee.name}</p>}
+      </div>
+    );
+  };
+
+  const TimeBlockCard = ({ block, topPx, heightPx }: { block: TimeBlock; topPx: number; heightPx: number }) => {
+    const h = Math.max(heightPx, 20);
+    return (
+      <div
+        className="absolute z-[8] rounded-md px-2 py-1 text-xs bg-secondary/80 border border-border/60 pointer-events-none"
+        style={{ top: `${topPx}px`, height: `${h}px`, left: '1px', right: '1px' }}
+      >
+        {h > 24 && (
+          <p className="truncate text-muted-foreground font-medium">{block.note || 'Zablokowany termin'}</p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -236,7 +283,13 @@ const AdminCalendar = () => {
 
             {/* Day columns */}
             {weekDays.map((day) => {
+              const dayStr = format(day, 'yyyy-MM-dd');
               const dayAppts = getDayAppointments(day);
+              const effectiveEmpId = filterEmployeeId !== 'all' ? filterEmployeeId : null;
+
+              const dayBlocks = can('time_blocks')
+                ? timeBlocks.filter(b => b.date === dayStr && (!effectiveEmpId || b.employeeId === effectiveEmpId))
+                : [];
 
               return (
                 <div key={day.toISOString()} className="border-l border-border/40 relative">
@@ -253,6 +306,16 @@ const AdminCalendar = () => {
                       </div>
                     </div>
                   ))}
+
+                  {/* Time block overlays */}
+                  {dayBlocks.map(block => {
+                    const [sh, sm] = block.startTime.split(':').map(Number);
+                    const [eh, em] = block.endTime.split(':').map(Number);
+                    const topPx = (sh + sm / 60 - START_HOUR) * HOUR_HEIGHT;
+                    const heightPx = (eh + em / 60 - sh - sm / 60) * HOUR_HEIGHT;
+                    if (topPx < 0) return null;
+                    return <TimeBlockCard key={block.id} block={block} topPx={topPx} heightPx={heightPx} />;
+                  })}
 
                   {/* Appointments overlay */}
                   {(() => {
@@ -318,46 +381,13 @@ const AdminCalendar = () => {
                       const startHour = aDate.getHours() + aDate.getMinutes() / 60;
                       const topPx = (startHour - START_HOUR) * HOUR_HEIGHT;
                       const heightPx = (a.duration / 60) * HOUR_HEIGHT;
-                      const service = services.find(s => s.id === a.serviceId);
-                      const employee = employees.find(e => e.id === a.employeeId);
-                      const empColor = getEmployeeColor(a.employeeId, employees);
-                      const layout = apptLayout.get(a.id) || { col: 0, totalCols: 1 };
-
                       if (topPx < 0 || topPx >= hours.length * HOUR_HEIGHT) return null;
 
-                      const widthPercent = 100 / layout.totalCols;
-                      const leftPercent = layout.col * widthPercent;
+                      const l = apptLayout.get(a.id) || { col: 0, totalCols: 1 };
+                      const widthPct = 100 / l.totalCols;
+                      const leftPct = l.col * widthPct;
 
-                      return (
-                        <div
-                          key={a.id}
-                          onClick={(e) => handleAppointmentClick(e, a)}
-                          className={`absolute z-10 rounded-md px-1.5 py-1 text-xs cursor-pointer border-l-[3px] transition-all hover:shadow-md hover:z-20 overflow-hidden ${empColor.bg} ${empColor.border} ${empColor.text}`}
-                          style={{
-                            top: `${topPx}px`,
-                            height: `${Math.max(heightPx, 24)}px`,
-                            left: `${leftPercent}%`,
-                            width: `calc(${widthPercent}% - 2px)`,
-                          }}
-                          title={`${a.clientName}${service ? ` – ${service.name}` : ''}${a.notes ? `\n${a.notes}` : ''}`}
-                        >
-                          <p className="font-bold truncate leading-tight">
-                            {a.clientName}
-                          </p>
-                          <p className="truncate opacity-70 leading-tight">
-                            {format(aDate, 'HH:mm')} · {service?.name || 'Wizyta'}
-                          </p>
-                          {heightPx > 40 && a.clientPhone && (
-                            <p className="truncate opacity-70 leading-tight">📞 {formatPhoneNumber(a.clientPhone)}</p>
-                          )}
-                          {heightPx > 56 && a.notes && (
-                            <p className="truncate opacity-60 leading-tight italic">📝 {a.notes}</p>
-                          )}
-                          {heightPx > 72 && employee && (
-                            <p className="truncate opacity-50 leading-tight">{employee.name}</p>
-                          )}
-                        </div>
-                      );
+                      return <ApptCard key={a.id} a={a} topPx={topPx} heightPx={heightPx} widthPct={widthPct} leftPct={leftPct} />;
                     });
                   })()}
                 </div>
@@ -376,6 +406,7 @@ const AdminCalendar = () => {
         employees={employees}
         onSave={handleSaveAppointment}
         onDelete={handleDeleteAppointment}
+        hidePhone={can('phone_protection') && !isAdmin}
       />
 
     </div>

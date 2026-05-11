@@ -15,7 +15,11 @@ export type FeatureKey =
   | 'reports'
   | 'phone_protection'
   | 'gallery'
-  | 'services';
+  | 'services'
+  | 'no_show_stats'
+  | 'client_history'
+  | 'time_blocks'
+  | 'employee_sms_notify';
 
 export interface PlanDefinition {
   id: string;
@@ -33,13 +37,14 @@ export const PLANS: PlanDefinition[] = [
       'dashboard','calendar','appointments','employees','clients',
       'messages','online_booking','deposits','reports','phone_protection',
       'gallery','services',
+      'no_show_stats','client_history','time_blocks','employee_sms_notify',
     ],
   },
   {
     id: 'standard',
     name: 'Standard',
     price: 89,
-    features: ['dashboard','calendar','appointments','employees','clients','services'],
+    features: ['dashboard','calendar','appointments','employees','clients','services','gallery'],
   },
   {
     id: 'standard_plus',
@@ -47,7 +52,7 @@ export const PLANS: PlanDefinition[] = [
     price: 129,
     features: [
       'dashboard','calendar','appointments','employees','clients','services',
-      'messages','online_booking','deposits',
+      'messages','online_booking','deposits','gallery',
     ],
   },
   {
@@ -56,7 +61,8 @@ export const PLANS: PlanDefinition[] = [
     price: 149,
     features: [
       'dashboard','calendar','appointments','employees','clients','services',
-      'messages','online_booking','deposits','reports','phone_protection',
+      'messages','online_booking','deposits','reports','phone_protection','gallery',
+      'no_show_stats','client_history','time_blocks','employee_sms_notify',
     ],
   },
 ];
@@ -74,6 +80,10 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   reports: '📈 Raporty',
   phone_protection: '🔒 Ochrona telefonów',
   gallery: '🖼️ Galeria',
+  no_show_stats: '🚫 Statystyki no-show',
+  client_history: '📖 Historia klienta',
+  time_blocks: '⛔ Blokady terminów',
+  employee_sms_notify: '📱 SMS do pracownika',
 };
 
 export function getPlanById(id: string): PlanDefinition | undefined {

@@ -10,6 +10,7 @@ import { IS_DEMO } from "./config/demo";
 import { useEffect } from "react";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminCalendar from "./pages/admin/AdminCalendar";
@@ -21,6 +22,7 @@ import AdminMessages from "./pages/admin/AdminMessages";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminGallery from "./pages/admin/AdminGallery";
 import AdminReports from "./pages/admin/AdminReports";
+import AdminTimeBlocks from "./pages/admin/AdminTimeBlocks";
 import { AdminLayout } from "./components/admin/AdminLayout";
 
 const queryClient = new QueryClient();
@@ -55,7 +57,9 @@ const App = () => {
                   <Route path="raporty" element={<AdminReports />} />
                   <Route path="uslugi" element={<AdminServices />} />
                   <Route path="pracownicy" element={<AdminEmployees />} />
+                  <Route path="blokady" element={<AdminTimeBlocks />} />
                 </Route>
+                <Route path="/polityka-prywatnosci" element={<PrivacyPolicy />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

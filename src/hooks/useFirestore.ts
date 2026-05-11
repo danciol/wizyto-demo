@@ -117,26 +117,56 @@ export function useClients() {
   return { clients: data, loading, addClient, updateClient };
 }
 
+// --- Time Blocks ---
+export interface TimeBlock {
+  id: string;
+  employeeId: string;
+  date: string;      // yyyy-MM-dd
+  startTime: string; // HH:mm
+  endTime: string;   // HH:mm
+  note?: string;
+}
+
+export function useTimeBlocks() {
+  const { data, loading } = useCollection<TimeBlock>('time_blocks', orderBy('date', 'asc'));
+
+  const addTimeBlock = async (block: Omit<TimeBlock, 'id'>) => {
+    await addDoc(collection(db, 'time_blocks'), block);
+  };
+
+  const deleteTimeBlock = async (id: string) => {
+    await deleteDoc(doc(db, 'time_blocks', id));
+  };
+
+  return { timeBlocks: data, loading, addTimeBlock, deleteTimeBlock };
+}
+
 // --- Settings ---
 export function useSettings() {
   const [depositAmount, setDepositAmount] = useState<number>(0);
-  const [googleClientId, setGoogleClientId] = useState<string>('');
-  const [googleConnected, setGoogleConnected] = useState<boolean>(false);
-  const [googleTokenExpiry, setGoogleTokenExpiry] = useState<number>(0);
+  const [textBeeApiKey, setTextBeeApiKey] = useState<string>('');
+  const [textBeeDeviceId, setTextBeeDeviceId] = useState<string>('');
+  const [reminderTemplate, setReminderTemplate] = useState<string>('');
+  const [cloudinaryCloudName, setCloudinaryCloudName] = useState<string>('');
+  const [cloudinaryUploadPreset, setCloudinaryUploadPreset] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'settings', 'global'), (snap) => {
       if (snap.exists()) {
         setDepositAmount(snap.data().depositAmount ?? 0);
-        setGoogleClientId(snap.data().googleClientId ?? '');
-        setGoogleConnected(snap.data().googleConnected ?? false);
-        setGoogleTokenExpiry(snap.data().googleTokenExpiry ?? 0);
+        setTextBeeApiKey(snap.data().textBeeApiKey ?? '');
+        setTextBeeDeviceId(snap.data().textBeeDeviceId ?? '');
+        setReminderTemplate(snap.data().reminderTemplate ?? '');
+        setCloudinaryCloudName(snap.data().cloudinaryCloudName ?? '');
+        setCloudinaryUploadPreset(snap.data().cloudinaryUploadPreset ?? '');
       } else {
         setDepositAmount(0);
-        setGoogleClientId('');
-        setGoogleConnected(false);
-        setGoogleTokenExpiry(0);
+        setTextBeeApiKey('');
+        setTextBeeDeviceId('');
+        setReminderTemplate('');
+        setCloudinaryCloudName('');
+        setCloudinaryUploadPreset('');
       }
       setLoading(false);
     }, () => setLoading(false));
@@ -149,11 +179,23 @@ export function useSettings() {
     );
   };
 
-  const saveGoogleClientId = async (clientId: string) => {
+  const saveTextBee = async (apiKey: string, deviceId: string) => {
     await import('firebase/firestore').then(({ setDoc }) =>
-      setDoc(doc(db, 'settings', 'global'), { googleClientId: clientId }, { merge: true })
+      setDoc(doc(db, 'settings', 'global'), { textBeeApiKey: apiKey, textBeeDeviceId: deviceId }, { merge: true })
     );
   };
 
-  return { depositAmount, googleClientId, googleConnected, googleTokenExpiry, loading, saveDepositAmount, saveGoogleClientId };
+  const saveReminderTemplate = async (template: string) => {
+    await import('firebase/firestore').then(({ setDoc }) =>
+      setDoc(doc(db, 'settings', 'global'), { reminderTemplate: template }, { merge: true })
+    );
+  };
+
+  const saveCloudinary = async (cloudName: string, uploadPreset: string) => {
+    await import('firebase/firestore').then(({ setDoc }) =>
+      setDoc(doc(db, 'settings', 'global'), { cloudinaryCloudName: cloudName, cloudinaryUploadPreset: uploadPreset }, { merge: true })
+    );
+  };
+
+  return { depositAmount, textBeeApiKey, textBeeDeviceId, reminderTemplate, cloudinaryCloudName, cloudinaryUploadPreset, loading, saveDepositAmount, saveTextBee, saveReminderTemplate, saveCloudinary };
 }

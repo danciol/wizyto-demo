@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface GalleryImage {
   id: string;
@@ -9,7 +10,6 @@ interface GalleryImage {
   name: string;
 }
 
-// Placeholder gdy brak zdjęć w Firebase
 import gallery1 from '@/assets/gallery-1.jpg';
 import gallery2 from '@/assets/gallery-2.jpg';
 import gallery3 from '@/assets/gallery-3.jpg';
@@ -25,6 +25,7 @@ const placeholders = [
 export function GallerySection() {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lightbox, setLightbox] = useState<number | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'gallery'), orderBy('createdAt', 'desc'));
@@ -36,6 +37,20 @@ export function GallerySection() {
   }, []);
 
   const displayed = images.length > 0 ? images : placeholders;
+
+  const prev = () => setLightbox(i => i !== null ? (i - 1 + displayed.length) % displayed.length : null);
+  const next = () => setLightbox(i => i !== null ? (i + 1) % displayed.length : null);
+
+  useEffect(() => {
+    if (lightbox === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') prev();
+      else if (e.key === 'ArrowRight') next();
+      else if (e.key === 'Escape') setLightbox(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox, displayed.length]);
 
   return (
     <section id="galeria" className="py-20 md:py-28 bg-secondary/50">
@@ -58,7 +73,8 @@ export function GallerySection() {
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.08 }}
-              className="overflow-hidden rounded-xl aspect-square group"
+              onClick={() => setLightbox(i)}
+              className="overflow-hidden rounded-xl aspect-square group cursor-pointer"
             >
               <img
                 src={img.url}
@@ -72,6 +88,48 @@ export function GallerySection() {
           ))}
         </div>
       </div>
+
+      {lightbox !== null && (
+        <div
+          className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-colors"
+            onClick={() => setLightbox(null)}
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {displayed.length > 1 && (
+            <>
+              <button
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-colors"
+                onClick={e => { e.stopPropagation(); prev(); }}
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-colors"
+                onClick={e => { e.stopPropagation(); next(); }}
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </>
+          )}
+
+          <img
+            src={displayed[lightbox].url}
+            alt={displayed[lightbox].name}
+            className="max-w-full max-h-full rounded-xl object-contain select-none"
+            onClick={e => e.stopPropagation()}
+          />
+
+          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm">
+            {lightbox + 1} / {displayed.length}
+          </p>
+        </div>
+      )}
     </section>
   );
 }

@@ -262,6 +262,25 @@ const AdminClients = () => {
                 {isExpanded && clientAppts.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border space-y-2">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Historia wizyt</p>
+                    {can('client_history') && (() => {
+                      const nonCancelled = clientAppts.filter(a => a.status !== 'cancelled');
+                      const totalValue = nonCancelled.reduce((sum, a) => {
+                        const svc = services.find(s => s.id === a.serviceId);
+                        return sum + (svc?.price || 0);
+                      }, 0);
+                      const svcCounts = new Map<string, number>();
+                      nonCancelled.forEach(a => {
+                        const name = services.find(s => s.id === a.serviceId)?.name;
+                        if (name) svcCounts.set(name, (svcCounts.get(name) || 0) + 1);
+                      });
+                      const fav = Array.from(svcCounts.entries()).sort((a, b) => b[1] - a[1])[0];
+                      return (
+                        <div className="flex flex-wrap gap-3 text-xs bg-primary/5 border border-primary/10 rounded-lg p-2.5">
+                          <span className="text-muted-foreground">💰 Łącznie: <strong className="text-foreground">{totalValue} zł</strong></span>
+                          {fav && <span className="text-muted-foreground">⭐ Najczęściej: <strong className="text-foreground">{fav[0]}</strong></span>}
+                        </div>
+                      );
+                    })()}
                     {clientAppts.map(appt => {
                       const svc = services.find(s => s.id === appt.serviceId);
                       return (

@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
 import { useAppointments, useServices, useEmployees } from '@/hooks/useFirestore';
-import { TrendingUp, Users, Scissors, CreditCard, Loader2, Eye } from 'lucide-react';
+import { TrendingUp, Users, Scissors, CreditCard, Loader2, Eye, UserX } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, isWithinInterval } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useState, useEffect } from 'react';
+import { usePlan } from '@/hooks/usePlan';
 
 interface PhoneReveal {
   id: string;
@@ -19,8 +20,10 @@ const AdminReports = () => {
   const { appointments, loading: loadingA } = useAppointments();
   const { services, loading: loadingS } = useServices();
   const { employees, loading: loadingE } = useEmployees();
+  const { can } = usePlan();
   const [phoneReveals, setPhoneReveals] = useState<PhoneReveal[]>([]);
   const [period, setPeriod] = useState<'current' | 'last'>('current');
+  const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
 
   useEffect(() => {
     const q = query(collection(db, 'phone_reveals'), orderBy('revealedAt', 'desc'));
@@ -52,7 +55,7 @@ const AdminReports = () => {
     [periodAppointments]);
 
   const byEmployee = useMemo(() =>
-    employees.map(e => {
+    employees.filter(e => (e.role || 'pracownik') !== 'salon').map(e => {
       const appts = periodAppointments.filter(a => a.employeeId === e.id);
       const rev = appts.reduce((sum, a) => sum + (services.find(s => s.id === a.serviceId)?.price || 0), 0);
       const reveals = phoneReveals.filter(r => r.employeeName === e.name).length;
@@ -65,6 +68,25 @@ const AdminReports = () => {
       return { ...s, count, total: count * s.price };
     }).filter(s => s.count > 0).sort((a, b) => b.count - a.count),
     [services, periodAppointments]);
+
+  const noShowStats = useMemo(() => {
+    if (!can('no_show_stats')) return [];
+    const cancelled = appointments.filter(a => {
+      const d = new Date(a.date);
+      if (!isWithinInterval(d, { start: periodStart, end: periodEnd })) return false;
+      if (a.status !== 'cancelled') return false;
+      if (selectedEmployee !== 'all' && a.employeeId !== selectedEmployee) return false;
+      return true;
+    });
+    const map = new Map<string, { name: string; count: number; lost: number }>();
+    cancelled.forEach(a => {
+      const key = a.clientPhone || a.clientName;
+      const svc = services.find(s => s.id === a.serviceId);
+      const cur = map.get(key) || { name: a.clientName, count: 0, lost: 0 };
+      map.set(key, { name: a.clientName, count: cur.count + 1, lost: cur.lost + (svc?.price || 0) });
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [can, appointments, services, selectedEmployee, periodStart, periodEnd]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
 
@@ -151,6 +173,27 @@ const AdminReports = () => {
           }
         </div>
       </div>
+
+      {/* No-show stats */}
+      {can('no_show_stats') && noShowStats.length > 0 && (
+        <div className="glass-card p-5">
+          <h2 className="font-semibold mb-4 flex items-center gap-2">
+            <UserX className="w-4 h-4 text-destructive" />
+            No-show / Anulowania w tym okresie
+          </h2>
+          <div className="space-y-3">
+            {noShowStats.map((ns, i) => (
+              <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
+                <div>
+                  <p className="font-medium text-sm">{ns.name}</p>
+                  <p className="text-xs text-muted-foreground">{ns.count}× anulowano</p>
+                </div>
+                <p className="text-sm font-semibold text-destructive">-{ns.lost} zł</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Log odkryć telefonów */}
       {phoneReveals.length > 0 && (

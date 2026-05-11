@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button';
 import { BookingData } from './BookingWizard';
 import { useAppointments, useClients } from '@/hooks/useFirestore';
 import { toast } from 'sonner';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getPlanById } from '@/config/plans';
+import { sendSms } from '@/lib/textbee';
 
 interface Props {
   booking: BookingData;
@@ -58,6 +60,20 @@ export function StepConfirmation({ booking, onClose }: Props) {
 
       setSaved(true);
       toast.success('Wizyta zgłoszona — czeka na potwierdzenie salonu!');
+
+      // Employee SMS notification (Pro feature)
+      try {
+        const settingsSnap = await getDoc(doc(db, 'settings', 'global'));
+        const planId = settingsSnap.data()?.plan || 'test';
+        const plan = getPlanById(planId);
+        if (plan?.features.includes('employee_sms_notify') && booking.employee?.phone) {
+          const dateStr = booking.date?.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' }) || '';
+          await sendSms(
+            [booking.employee.phone],
+            `Nowa wizyta: ${booking.clientName}, ${booking.service?.name}, ${dateStr} o ${booking.time}`
+          );
+        }
+      } catch { /* silent */ }
     } catch {
       toast.error('Błąd rezerwacji. Spróbuj ponownie.');
     }

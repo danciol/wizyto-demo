@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Zap } from 'lucide-react';
@@ -11,15 +12,18 @@ import { IS_DEMO, DEMO_CREDENTIALS } from '@/config/demo';
 const AdminLogin = () => {
   const [login, setLogin] = useState(IS_DEMO ? DEMO_CREDENTIALS.email : '');
   const [password, setPassword] = useState(IS_DEMO ? DEMO_CREDENTIALS.password : '');
+  const [remember, setRemember] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { login: doLogin } = useAuth();
+  const { login: doLogin, isAuthenticated } = useAuth();
+
+  if (isAuthenticated) return <Navigate to="/admin" replace />;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!login || !password) { toast.error('Wprowadź login i hasło'); return; }
     setIsLoading(true);
-    const success = await doLogin(login, password);
+    const success = await doLogin(login, password, remember);
     setIsLoading(false);
     if (success) { toast.success('Zalogowano pomyślnie'); navigate('/admin'); }
     else toast.error('Nieprawidłowy login lub hasło');
@@ -51,6 +55,16 @@ const AdminLogin = () => {
             <Input id="login" type="text" placeholder="Twój login" value={login} onChange={e => setLogin(e.target.value)} /></div>
           <div><Label htmlFor="password">Hasło</Label>
             <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} /></div>
+          <div className="flex items-center gap-2.5">
+            <Checkbox
+              id="remember"
+              checked={remember}
+              onCheckedChange={(val) => setRemember(val === true)}
+            />
+            <label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer select-none">
+              Pamiętaj mnie
+            </label>
+          </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Logowanie...</> : 'Zaloguj się'}
           </Button>
