@@ -55,8 +55,9 @@ const AdminCalendar = () => {
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>('all');
 
   const isAdmin = currentUser?.role === 'admin';
+  const isSalon = currentUser?.role === 'salon';
 
-  const visibleEmployees = isAdmin
+  const visibleEmployees = (isAdmin || isSalon)
     ? employees
     : employees.filter(e =>
         e.id === currentUser?.id ||

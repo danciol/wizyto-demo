@@ -19,7 +19,7 @@ interface NavLink {
 
 const allLinks: NavLink[] = [
   { to: '/admin',              label: 'Dashboard',   icon: LayoutDashboard, roles: ['admin','pracownik'], feature: 'dashboard' },
-  { to: '/admin/kalendarz',    label: 'Kalendarz',   icon: Calendar,        roles: ['admin','pracownik'], feature: 'calendar' },
+  { to: '/admin/kalendarz',    label: 'Kalendarz',   icon: Calendar,        roles: ['admin','pracownik','salon'], feature: 'calendar' },
   { to: '/admin/wizyty',       label: 'Wizyty',      icon: ClipboardList,   roles: ['admin'],             feature: 'appointments' },
   { to: '/admin/klienci',      label: 'Klienci',     icon: UserCheck,       roles: ['admin'],             feature: 'clients' },
   { to: '/admin/pracownicy',   label: 'Pracownicy',  icon: Users,           roles: ['admin'],             feature: 'employees' },
