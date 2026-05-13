@@ -277,7 +277,7 @@ const AdminCalendar = () => {
             <div>
               {hours.map((hour) => (
                 <div key={hour} className="relative pr-2 border-b border-border/40" style={{ height: HOUR_HEIGHT }}>
-                  <span className="absolute top-0 right-2 -translate-y-1/2 text-[11px] text-muted-foreground leading-none">{hour}:00</span>
+                  <span className={`absolute top-0 right-2 text-[11px] text-muted-foreground leading-none ${hour === START_HOUR ? 'pt-0.5' : '-translate-y-1/2'}`}>{hour}:00</span>
                 </div>
               ))}
             </div>
