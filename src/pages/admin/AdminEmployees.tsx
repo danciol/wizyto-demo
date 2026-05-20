@@ -143,7 +143,7 @@ const AdminEmployees = () => {
         role: form.role,
         login: form.login,
         password: form.password,
-        phone: form.phone.trim() || undefined,
+        phone: form.phone.trim() || null,
         workingHours: form.workingHours,
         daysOff,
         canViewCalendars: form.canViewCalendars,
