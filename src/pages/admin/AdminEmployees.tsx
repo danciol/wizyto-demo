@@ -44,6 +44,19 @@ interface EmployeeForm {
   workingHours: Record<string, string>;
   daysOff: string;
   canViewCalendars: string[];
+  shiftMode: boolean;
+  shiftAStart: string;
+  shiftAEnd: string;
+  shiftBStart: string;
+  shiftBEnd: string;
+  weekAStartDate: string;
+}
+
+function snapToMonday(dateStr: string): string {
+  const d = new Date(dateStr);
+  const day = d.getDay();
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  return d.toISOString().split('T')[0];
 }
 
 const defaultWorkingHours: Record<string, string> = {
@@ -67,6 +80,8 @@ const AdminEmployees = () => {
   const [form, setForm] = useState<EmployeeForm>({
     name: '', role: 'pracownik', login: '', password: '', phone: '',
     workingHours: { ...defaultWorkingHours }, daysOff: '', canViewCalendars: [],
+    shiftMode: false, shiftAStart: '08:00', shiftAEnd: '16:00',
+    shiftBStart: '12:00', shiftBEnd: '20:00', weekAStartDate: '',
   });
 
   const openNew = () => {
@@ -74,6 +89,8 @@ const AdminEmployees = () => {
     setForm({
       name: '', role: 'pracownik', login: '', password: '', phone: '',
       workingHours: { ...defaultWorkingHours }, daysOff: '', canViewCalendars: [],
+      shiftMode: false, shiftAStart: '08:00', shiftAEnd: '16:00',
+      shiftBStart: '12:00', shiftBEnd: '20:00', weekAStartDate: '',
     });
     setDialogOpen(true);
   };
@@ -85,6 +102,7 @@ const AdminEmployees = () => {
     for (const [day, val] of Object.entries(e.workingHours)) {
       wh[day] = typeof val === 'string' ? val : `${val.start}-${val.end}`;
     }
+    const ss = e.shiftSchedule;
     setForm({
       name: e.name,
       role: e.role || 'pracownik',
@@ -94,6 +112,12 @@ const AdminEmployees = () => {
       workingHours: wh,
       daysOff: (e.daysOff || []).join(', '),
       canViewCalendars: e.canViewCalendars || [],
+      shiftMode: ss?.type === 'alternating',
+      shiftAStart: ss?.shiftA?.start ?? '08:00',
+      shiftAEnd: ss?.shiftA?.end ?? '16:00',
+      shiftBStart: ss?.shiftB?.start ?? '12:00',
+      shiftBEnd: ss?.shiftB?.end ?? '20:00',
+      weekAStartDate: ss?.weekAStartDate ?? '',
     });
     setDialogOpen(true);
   };
@@ -106,6 +130,14 @@ const AdminEmployees = () => {
     if (!form.name) { toast.error('Wprowadź imię'); return; }
     try {
       const daysOff = form.daysOff.split(',').map(s => s.trim()).filter(Boolean);
+      const shiftSchedule = (form.shiftMode && form.shiftAStart && form.shiftAEnd && form.shiftBStart && form.shiftBEnd && form.weekAStartDate)
+        ? {
+            type: 'alternating' as const,
+            shiftA: { start: form.shiftAStart, end: form.shiftAEnd },
+            shiftB: { start: form.shiftBStart, end: form.shiftBEnd },
+            weekAStartDate: snapToMonday(form.weekAStartDate),
+          }
+        : null;
       const data: Record<string, unknown> = {
         name: form.name,
         role: form.role,
@@ -115,6 +147,7 @@ const AdminEmployees = () => {
         workingHours: form.workingHours,
         daysOff,
         canViewCalendars: form.canViewCalendars,
+        shiftSchedule,
       };
       if (editing) {
         await updateEmployee(editing.id, data as Partial<Employee>);
@@ -173,7 +206,17 @@ const AdminEmployees = () => {
               </div>
             </div>
 
-            {emp.workingHours && (
+            {emp.shiftSchedule?.type === 'alternating' && (
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-[11px] bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
+                  Zmiana A: {emp.shiftSchedule.shiftA.start}–{emp.shiftSchedule.shiftA.end}
+                </span>
+                <span className="text-[11px] bg-secondary text-muted-foreground px-2 py-1 rounded-full font-medium">
+                  Zmiana B: {emp.shiftSchedule.shiftB.start}–{emp.shiftSchedule.shiftB.end}
+                </span>
+              </div>
+            )}
+            {!emp.shiftSchedule && emp.workingHours && (
               <div className="mb-3">
                 <p className="text-xs text-muted-foreground font-medium mb-1.5">Godziny pracy</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -354,6 +397,54 @@ const AdminEmployees = () => {
                 onChange={e => setForm(f => ({ ...f, daysOff: e.target.value }))}
                 placeholder="2026-04-11, 2026-04-25"
               />
+            </div>
+
+            <div className="rounded-lg border border-border p-4 space-y-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <Checkbox
+                  checked={form.shiftMode}
+                  onCheckedChange={(checked) => setForm(f => ({ ...f, shiftMode: !!checked }))}
+                />
+                <div>
+                  <p className="text-sm font-medium">Tryb zmianowy A/B</p>
+                  <p className="text-xs text-muted-foreground">Automatycznie zmienia godziny co tydzień</p>
+                </div>
+              </label>
+
+              {form.shiftMode && (
+                <div className="space-y-3 pl-7">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Zmiana A — od</Label>
+                      <Input value={form.shiftAStart} onChange={e => setForm(f => ({ ...f, shiftAStart: e.target.value }))} placeholder="08:00" className="text-sm" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Zmiana A — do</Label>
+                      <Input value={form.shiftAEnd} onChange={e => setForm(f => ({ ...f, shiftAEnd: e.target.value }))} placeholder="16:00" className="text-sm" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Zmiana B — od</Label>
+                      <Input value={form.shiftBStart} onChange={e => setForm(f => ({ ...f, shiftBStart: e.target.value }))} placeholder="12:00" className="text-sm" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Zmiana B — do</Label>
+                      <Input value={form.shiftBEnd} onChange={e => setForm(f => ({ ...f, shiftBEnd: e.target.value }))} placeholder="20:00" className="text-sm" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Data z tygodnia zmiany A <span className="text-muted-foreground font-normal">(dowolna data)</span></Label>
+                    <Input
+                      type="date"
+                      value={form.weekAStartDate}
+                      onChange={e => setForm(f => ({ ...f, weekAStartDate: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Wpisz datę z dowolnego dnia tygodnia, w którym pracownik ma zmianę A</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {form.role === 'pracownik' && (

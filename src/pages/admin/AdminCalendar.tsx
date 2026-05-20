@@ -3,7 +3,7 @@ import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Appointment } from '@/data/services';
+import { Appointment, getEffectiveHours } from '@/data/services';
 import { useAppointments, useServices, useEmployees, useClients, useTimeBlocks } from '@/hooks/useFirestore';
 import type { TimeBlock } from '@/hooks/useFirestore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -217,6 +217,20 @@ const AdminCalendar = () => {
     );
   };
 
+  const WorkingHoursOverlay = ({ wh }: { wh: { start: string; end: string } | null }) => {
+    if (!wh) return null;
+    const parse = (t: string) => { const [h, m] = t.split(':').map(Number); return h + (m || 0) / 60; };
+    const totalPx = hours.length * HOUR_HEIGHT;
+    const beforeH = Math.max(0, (parse(wh.start) - START_HOUR) * HOUR_HEIGHT);
+    const afterTop = Math.min(totalPx, (parse(wh.end) - START_HOUR) * HOUR_HEIGHT);
+    return (
+      <>
+        {beforeH > 0 && <div className="absolute inset-x-0 z-[4] bg-secondary/60 pointer-events-none" style={{ top: 0, height: beforeH }} />}
+        {afterTop < totalPx && <div className="absolute inset-x-0 z-[4] bg-secondary/60 pointer-events-none" style={{ top: afterTop, bottom: 0 }} />}
+      </>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -256,8 +270,13 @@ const AdminCalendar = () => {
             <div className="p-2" />
             {weekDays.map((day) => {
               const isToday = isSameDay(day, new Date());
+              const hdrEmpId = filterEmployeeId !== 'all' ? filterEmployeeId : null;
+              const hdrEmp = hdrEmpId ? employees.find(e => e.id === hdrEmpId) : null;
+              const hdrDayStr = format(day, 'yyyy-MM-dd');
+              const hdrOff = hdrEmp ? (hdrEmp.daysOff || []).includes(hdrDayStr) : false;
+              const hdrWh = hdrEmp && !hdrOff ? getEffectiveHours(hdrEmp, day) : null;
               return (
-                <div key={day.toISOString()} className="p-2 text-center border-l border-border">
+                <div key={day.toISOString()} className={`p-2 text-center border-l border-border ${hdrOff ? 'bg-secondary/30' : ''}`}>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide">
                     {format(day, 'EEE', { locale: pl })}
                   </p>
@@ -266,6 +285,8 @@ const AdminCalendar = () => {
                   }`}>
                     {format(day, 'd')}
                   </div>
+                  {hdrWh && <p className="text-[10px] text-primary/70 font-semibold mt-0.5">{hdrWh.start}–{hdrWh.end}</p>}
+                  {hdrOff && <p className="text-[10px] text-muted-foreground mt-0.5">wolne</p>}
                 </div>
               );
             })}
@@ -287,6 +308,9 @@ const AdminCalendar = () => {
               const dayStr = format(day, 'yyyy-MM-dd');
               const dayAppts = getDayAppointments(day);
               const effectiveEmpId = filterEmployeeId !== 'all' ? filterEmployeeId : null;
+              const colEmp = effectiveEmpId ? employees.find(e => e.id === effectiveEmpId) : null;
+              const isColEmpOff = colEmp ? (colEmp.daysOff || []).includes(dayStr) : false;
+              const workingHours = colEmp && !isColEmpOff ? getEffectiveHours(colEmp, day) : null;
 
               const dayBlocks = can('time_blocks')
                 ? timeBlocks.filter(b => b.date === dayStr && (!effectiveEmpId || b.employeeId === effectiveEmpId))
@@ -294,6 +318,7 @@ const AdminCalendar = () => {
 
               return (
                 <div key={day.toISOString()} className="border-l border-border/40 relative">
+                  <WorkingHoursOverlay wh={workingHours} />
                   {/* Hour cells (for click targets & grid lines) */}
                   {hours.map((hour) => (
                     <div

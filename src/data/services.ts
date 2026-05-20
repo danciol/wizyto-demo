@@ -1,3 +1,5 @@
+import { differenceInCalendarWeeks } from 'date-fns';
+
 export interface Service {
   id: string;
   name: string;
@@ -10,6 +12,13 @@ export interface Service {
   active?: boolean;
   selfBooking?: boolean;
   depositAmount?: number; // zaliczka w zł (0 = brak zaliczki)
+}
+
+export interface ShiftSchedule {
+  type: 'alternating';
+  shiftA: { start: string; end: string };
+  shiftB: { start: string; end: string };
+  weekAStartDate: string;
 }
 
 export interface Employee {
@@ -25,6 +34,7 @@ export interface Employee {
   canViewCalendars?: string[];
   workingHours: Record<string, { start: string; end: string } | string>;
   daysOff: string[];
+  shiftSchedule?: ShiftSchedule | null;
 }
 
 export interface Appointment {
@@ -141,3 +151,38 @@ export const mockAppointments: Appointment[] = [
     createdAt: new Date().toISOString(),
   },
 ];
+
+const DAY_KEY_MAP: Record<number, string[]> = {
+  0: ['sun', 'sunday'],
+  1: ['mon', 'monday'],
+  2: ['tue', 'tuesday'],
+  3: ['wed', 'wednesday'],
+  4: ['thu', 'thursday'],
+  5: ['fri', 'friday'],
+  6: ['sat', 'saturday'],
+};
+
+export function getEffectiveHours(emp: Employee, date: Date): { start: string; end: string } | null {
+  const keys = DAY_KEY_MAP[date.getDay()] ?? [];
+
+  if (emp.shiftSchedule?.type === 'alternating') {
+    const hasDay = keys.some(k => k in emp.workingHours);
+    if (!hasDay) return null;
+    const { shiftA, shiftB, weekAStartDate } = emp.shiftSchedule;
+    const refDate = new Date(weekAStartDate);
+    const diff = differenceInCalendarWeeks(date, refDate, { weekStartsOn: 1 });
+    return ((diff % 2) + 2) % 2 === 0 ? shiftA : shiftB;
+  }
+
+  let wh: { start: string; end: string } | string | undefined;
+  for (const k of keys) {
+    if (k in emp.workingHours) { wh = emp.workingHours[k]; break; }
+  }
+  if (!wh) return null;
+  if (typeof wh === 'string') {
+    if (!wh || /^(wolne|off|-)$/i.test(wh.trim())) return null;
+    const parts = wh.split('-').map(t => t.trim());
+    return parts.length >= 2 ? { start: parts[0], end: parts[1] } : null;
+  }
+  return { start: wh.start, end: wh.end };
+}
