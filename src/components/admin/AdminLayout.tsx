@@ -75,8 +75,8 @@ export function AdminLayout() {
                 <link.icon className="w-4 h-4" />
                 <span className="flex-1">{link.label}</span>
                 {isWizyty && pendingCount > 0 && (
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
-                    {pendingCount > 9 ? '9+' : pendingCount}
+                  <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
+                    {pendingCount}
                   </span>
                 )}
               </Link>
@@ -103,8 +103,8 @@ export function AdminLayout() {
           <span className="text-sm text-muted-foreground font-medium">Panel Administracyjny</span>
           {pendingCount > 0 && can('appointments') && (
             <Link to="/admin/wizyty" className="ml-auto flex items-center gap-2 text-xs font-medium text-destructive hover:underline">
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
-                {pendingCount > 9 ? '9+' : pendingCount}
+              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
+                {pendingCount}
               </span>
               {pendingCount === 1 ? 'wizyta czeka' : 'wizyty czekają'}
             </Link>
