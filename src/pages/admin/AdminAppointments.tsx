@@ -10,8 +10,9 @@ import { CheckCircle, X, Loader2, Search, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePlan } from '@/hooks/usePlan';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, buildCalendarEvent } from '@/lib/googleCalendar';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
 
 const statusLabels: Record<Appointment['status'], string> = {
   pending: 'Oczekuje',
@@ -26,6 +27,24 @@ const AdminAppointments = () => {
   const { appointments, loading: loadingA, updateAppointment } = useAppointments();
   const { services, loading: loadingS } = useServices();
   const { employees, loading: loadingE } = useEmployees();
+  const { employee: currentUser } = useAuth();
+  const { can } = usePlan();
+  const isAdmin = currentUser?.role === 'admin';
+  const isSalon = currentUser?.role === 'salon';
+  const phoneProtected = can('phone_protection') && !isAdmin && !isSalon;
+
+  const [revealedPhones, setRevealedPhones] = useState<Set<string>>(new Set());
+
+  const revealPhone = async (appt: Appointment) => {
+    setRevealedPhones(prev => new Set([...prev, appt.id]));
+    await addDoc(collection(db, 'phone_reveals'), {
+      employeeName: currentUser?.name || 'Nieznany',
+      clientName: appt.clientName,
+      clientPhone: appt.clientPhone,
+      revealedAt: new Date().toISOString(),
+    });
+  };
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | Appointment['status']>('all');
   const [employeeFilter, setEmployeeFilter] = useState('all');
@@ -78,7 +97,6 @@ const AdminAppointments = () => {
     setServiceFilter('all');
   };
 
-  const { can } = usePlan();
   const hasGoogleCal = can('online_booking');
 
   const handleStatusChange = async (id: string, status: Appointment['status']) => {
@@ -188,7 +206,16 @@ const AdminAppointments = () => {
                     </td>
                     <td className="p-3">
                       <p className="font-medium">{appt.clientName}</p>
-                      <p className="text-xs text-muted-foreground">{appt.clientPhone}</p>
+                      {phoneProtected && !revealedPhones.has(appt.id) ? (
+                        <button
+                          className="text-xs text-primary hover:underline"
+                          onClick={() => revealPhone(appt)}
+                        >
+                          Pokaż nr
+                        </button>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">{appt.clientPhone}</p>
+                      )}
                       {(appt as any).importSource === 'google_calendar' && (
                         <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 font-medium mt-0.5">📅 Google Cal</span>
                       )}

@@ -12,12 +12,12 @@ import { toast } from 'sonner';
 import AppointmentDialog, { formatPhoneNumber } from '@/components/admin/AppointmentDialog';
 import { NativeSelect } from '@/components/ui/native-select';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, buildCalendarEvent } from '@/lib/googleCalendar';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-const HOUR_HEIGHT = 56; // px per hour row
-const hours = Array.from({ length: 13 }, (_, i) => i + 8);
-const START_HOUR = 8;
+const HOUR_HEIGHT = 56;
+const hours = Array.from({ length: 17 }, (_, i) => i + 6);
+const START_HOUR = 6;
 
 const employeeColors = [
   { bg: 'bg-pink-100 dark:bg-pink-900/30', border: 'border-pink-400', text: 'text-pink-800 dark:text-pink-200' },
@@ -196,7 +196,7 @@ const AdminCalendar = () => {
       >
         <p className="font-bold truncate leading-tight">{a.clientName}</p>
         {h > 28 && <p className="truncate opacity-75 leading-tight">{format(aDate, 'HH:mm')} · {service?.name || 'Wizyta'}</p>}
-        {h > 48 && a.clientPhone && !(can('phone_protection') && !isAdmin) && <p className="truncate opacity-65 leading-tight">📞 {formatPhoneNumber(a.clientPhone)}</p>}
+        {h > 48 && a.clientPhone && !(can('phone_protection') && !isAdmin && !isSalon) && <p className="truncate opacity-65 leading-tight">📞 {formatPhoneNumber(a.clientPhone)}</p>}
         {h > 64 && a.notes && <p className="truncate opacity-60 leading-tight italic">📝 {a.notes}</p>}
         {h > 80 && employee && <p className="truncate opacity-50 leading-tight">{employee.name}</p>}
       </div>
@@ -432,7 +432,15 @@ const AdminCalendar = () => {
         employees={employees}
         onSave={handleSaveAppointment}
         onDelete={handleDeleteAppointment}
-        hidePhone={can('phone_protection') && !isAdmin}
+        hidePhone={can('phone_protection') && !isAdmin && !isSalon}
+        onRevealPhone={async (clientName, clientPhone) => {
+          await addDoc(collection(db, 'phone_reveals'), {
+            employeeName: currentUser?.name || 'Nieznany',
+            clientName,
+            clientPhone,
+            revealedAt: new Date().toISOString(),
+          });
+        }}
       />
 
     </div>

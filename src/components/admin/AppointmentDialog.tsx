@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Trash2 } from 'lucide-react';
+import { Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { Appointment, Service, Employee } from '@/data/services';
+import { Appointment, Service, Employee, getEffectiveHours } from '@/data/services';
 
 export function formatPhoneNumber(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 9);
@@ -28,10 +28,11 @@ interface AppointmentDialogProps {
   onSave: (data: Appointment) => void;
   onDelete?: (id: string) => void;
   hidePhone?: boolean;
+  onRevealPhone?: (clientName: string, clientPhone: string) => void;
 }
 
 const AppointmentDialog = ({
-  open, onOpenChange, appointment, defaultDate, services, employees, onSave, onDelete, hidePhone,
+  open, onOpenChange, appointment, defaultDate, services, employees, onSave, onDelete, hidePhone, onRevealPhone,
 }: AppointmentDialogProps) => {
   const isEdit = !!appointment;
 
@@ -45,6 +46,9 @@ const AppointmentDialog = ({
   const [duration, setDuration] = useState(60);
   const [status, setStatus] = useState<Appointment['status']>('pending');
   const [notes, setNotes] = useState('');
+  const [warning, setWarning] = useState<string | null>(null);
+  const [pendingData, setPendingData] = useState<Appointment | null>(null);
+  const [phoneRevealed, setPhoneRevealed] = useState(false);
 
   useEffect(() => {
     if (appointment) {
@@ -71,17 +75,20 @@ const AppointmentDialog = ({
       setStatus('pending');
       setNotes('');
     }
+    setWarning(null);
+    setPendingData(null);
+    setPhoneRevealed(false);
   }, [appointment, defaultDate]);
+
+  const clearWarning = () => { setWarning(null); setPendingData(null); };
 
   const selectedService = services.find(s => s.id === serviceId);
 
-  const handleSave = () => {
+  const buildAppointmentData = (): Appointment => {
     const dateTime = new Date(`${date}T${time}`);
-
-    const resolvedPhone = (hidePhone && isEdit)
+    const resolvedPhone = (hidePhone && isEdit && !phoneRevealed)
       ? (appointment?.clientPhone || '')
       : clientPhone.replace(/-/g, '').replace(/\s/g, '');
-
     const data: Appointment = {
       id: appointment?.id || 'new-' + Date.now(),
       serviceId,
@@ -96,12 +103,51 @@ const AppointmentDialog = ({
     };
     if (notes) data.notes = notes;
     if (appointment?.googleCalendarEventId) data.googleCalendarEventId = appointment.googleCalendarEventId;
+    return data;
+  };
 
+  const checkOutsideHours = (data: Appointment): string | null => {
+    if (!employeeId || !date || !time) return null;
+    const emp = employees.find(e => e.id === employeeId);
+    if (!emp) return null;
+    const apptDate = new Date(`${date}T${time}`);
+    const wh = getEffectiveHours(emp, apptDate);
+    const apptMinutes = apptDate.getHours() * 60 + apptDate.getMinutes();
+    const apptDuration = selectedService?.duration || duration;
+    const endMinutes = apptMinutes + apptDuration;
+
+    if (!wh) {
+      return `${emp.name} ma w tym dniu wolne. Czy na pewno chcesz dodać wizytę?`;
+    }
+    const [startH, startM] = wh.start.split(':').map(Number);
+    const [endH, endM] = wh.end.split(':').map(Number);
+    const whStart = startH * 60 + startM;
+    const whEnd = endH * 60 + endM;
+    if (apptMinutes < whStart || endMinutes > whEnd) {
+      return `${emp.name} pracuje w tym dniu od ${wh.start} do ${wh.end}. Czy na pewno chcesz dodać wizytę poza godzinami pracy?`;
+    }
+    return null;
+  };
+
+  const handleSave = () => {
+    const data = buildAppointmentData();
+    const msg = checkOutsideHours(data);
+    if (msg) {
+      setWarning(msg);
+      setPendingData(data);
+      return;
+    }
     onSave(data);
     onOpenChange(false);
   };
 
-  // Check both employeeIds and employees fields on service, plus employee.services
+  const handleConfirm = () => {
+    if (pendingData) {
+      onSave(pendingData);
+      onOpenChange(false);
+    }
+  };
+
   const availableServices = employeeId
     ? services.filter(s => s.active !== false && (
         s.employeeIds?.includes(employeeId) ||
@@ -131,11 +177,11 @@ const AppointmentDialog = ({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="appt-date">Data</Label>
-              <Input id="appt-date" type="date" value={date} onChange={e => setDate(e.target.value)} />
+              <Input id="appt-date" type="date" value={date} onChange={e => { setDate(e.target.value); clearWarning(); }} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="appt-time">Godzina</Label>
-              <Input id="appt-time" type="time" value={time} onChange={e => setTime(e.target.value)} />
+              <Input id="appt-time" type="time" value={time} onChange={e => { setTime(e.target.value); clearWarning(); }} />
             </div>
           </div>
 
@@ -144,11 +190,12 @@ const AppointmentDialog = ({
             <NativeSelect value={employeeId} onChange={(e) => {
               setEmployeeId(e.target.value);
               setServiceId('');
+              clearWarning();
             }}>
               <option value="">Wybierz pracownika</option>
-                {availableEmployees.map(e => (
+              {availableEmployees.map(e => (
                 <option key={e.id} value={e.id}>{e.name}</option>
-                ))}
+              ))}
             </NativeSelect>
           </div>
 
@@ -161,6 +208,7 @@ const AppointmentDialog = ({
                 setServiceId(value);
                 const svc = services.find(s => s.id === value);
                 if (svc) setDuration(svc.duration);
+                clearWarning();
               }}
             >
               <option value="">
@@ -182,9 +230,27 @@ const AppointmentDialog = ({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="appt-phone">Telefon</Label>
-              {hidePhone && isEdit ? (
-                <div className="flex items-center h-10 px-3 rounded-md border border-border bg-secondary/50 text-sm text-muted-foreground tracking-widest">
-                  ••• ••• •••
+              {hidePhone && isEdit && !phoneRevealed ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center h-10 px-3 rounded-md border border-border bg-secondary/50 text-sm text-muted-foreground tracking-widest flex-1">
+                    ••• ••• •••
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-10 shrink-0 text-xs"
+                    onClick={() => {
+                      setPhoneRevealed(true);
+                      onRevealPhone?.(appointment?.clientName || '', appointment?.clientPhone || '');
+                    }}
+                  >
+                    Pokaż nr
+                  </Button>
+                </div>
+              ) : hidePhone && isEdit && phoneRevealed ? (
+                <div className="flex items-center h-10 px-3 rounded-md border border-border bg-secondary/50 text-sm font-medium">
+                  {formatPhoneNumber(appointment?.clientPhone || '')}
                 </div>
               ) : (
                 <Input
@@ -204,7 +270,7 @@ const AppointmentDialog = ({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Czas trwania (min)</Label>
-              <Input type="number" min={15} step={15} value={duration} onChange={e => setDuration(Number(e.target.value))} />
+              <Input type="number" min={15} step={15} value={duration} onChange={e => { setDuration(Number(e.target.value)); clearWarning(); }} />
             </div>
             <div className="space-y-1.5">
               <Label>Status</Label>
@@ -222,17 +288,36 @@ const AppointmentDialog = ({
             <Textarea id="appt-notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
 
-          <div className="flex gap-2 justify-between pt-2">
-            {isEdit && onDelete ? (
-              <Button variant="destructive" size="sm" onClick={() => { onDelete(appointment!.id); onOpenChange(false); }}>
-                <Trash2 className="w-4 h-4 mr-1" /> Usuń
-              </Button>
-            ) : <div />}
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Anuluj</Button>
-              <Button onClick={handleSave}>Zapisz</Button>
+          {warning && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-3 space-y-2.5">
+              <p className="text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                {warning}
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="flex-1" onClick={clearWarning}>
+                  Zmień godzinę
+                </Button>
+                <Button size="sm" className="flex-1" onClick={handleConfirm}>
+                  Zapisz mimo to
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {!warning && (
+            <div className="flex gap-2 justify-between pt-2">
+              {isEdit && onDelete ? (
+                <Button variant="destructive" size="sm" onClick={() => { onDelete(appointment!.id); onOpenChange(false); }}>
+                  <Trash2 className="w-4 h-4 mr-1" /> Usuń
+                </Button>
+              ) : <div />}
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>Anuluj</Button>
+                <Button onClick={handleSave}>Zapisz</Button>
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
