@@ -102,8 +102,8 @@ export function AdminLayout() {
           <button className="md:hidden" onClick={() => setSidebarOpen(true)}><Menu className="w-5 h-5" /></button>
           <span className="text-sm text-muted-foreground font-medium">Panel Administracyjny</span>
           {pendingCount > 0 && can('appointments') && (
-            <Link to="/admin/wizyty" className="ml-auto flex items-center gap-2 text-xs font-medium text-destructive hover:underline">
-              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
+            <Link to="/admin/wizyty" className="ml-auto flex items-center gap-2 text-sm font-semibold text-destructive hover:underline">
+              <span className="inline-flex items-center justify-center min-w-7 h-7 px-2 rounded-full bg-destructive text-destructive-foreground text-sm font-bold">
                 {pendingCount}
               </span>
               {pendingCount === 1 ? 'wizyta czeka' : 'wizyty czekają'}
