@@ -35,6 +35,12 @@ const dayLabelsShort: Record<string, string> = {
   fri: 'Pt', sat: 'Sob', sun: 'Nd',
 };
 
+interface ShiftEntry {
+  start: string;
+  end: string;
+  days: string[];
+}
+
 interface EmployeeForm {
   name: string;
   role: string;
@@ -45,10 +51,8 @@ interface EmployeeForm {
   daysOff: string;
   canViewCalendars: string[];
   shiftMode: boolean;
-  shiftAStart: string;
-  shiftAEnd: string;
-  shiftBStart: string;
-  shiftBEnd: string;
+  shiftCount: number;
+  shiftEntries: ShiftEntry[];
   weekAStartDate: string;
 }
 
@@ -77,11 +81,14 @@ const AdminEmployees = () => {
   const [calPickerEmpId, setCalPickerEmpId] = useState<string | null>(null);
   const [calList, setCalList] = useState<GoogleCalendarListEntry[]>([]);
   const [calPickerLoading, setCalPickerLoading] = useState(false);
+  const defaultShiftEntries: ShiftEntry[] = [
+    { start: '08:00', end: '16:00', days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] },
+    { start: '12:00', end: '20:00', days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] },
+  ];
   const [form, setForm] = useState<EmployeeForm>({
     name: '', role: 'pracownik', login: '', password: '', phone: '',
     workingHours: { ...defaultWorkingHours }, daysOff: '', canViewCalendars: [],
-    shiftMode: false, shiftAStart: '08:00', shiftAEnd: '16:00',
-    shiftBStart: '12:00', shiftBEnd: '20:00', weekAStartDate: '',
+    shiftMode: false, shiftCount: 2, shiftEntries: defaultShiftEntries, weekAStartDate: '',
   });
 
   const openNew = () => {
@@ -89,8 +96,7 @@ const AdminEmployees = () => {
     setForm({
       name: '', role: 'pracownik', login: '', password: '', phone: '',
       workingHours: { ...defaultWorkingHours }, daysOff: '', canViewCalendars: [],
-      shiftMode: false, shiftAStart: '08:00', shiftAEnd: '16:00',
-      shiftBStart: '12:00', shiftBEnd: '20:00', weekAStartDate: '',
+      shiftMode: false, shiftCount: 2, shiftEntries: defaultShiftEntries, weekAStartDate: '',
     });
     setDialogOpen(true);
   };
@@ -103,6 +109,20 @@ const AdminEmployees = () => {
       wh[day] = typeof val === 'string' ? val : `${val.start}-${val.end}`;
     }
     const ss = e.shiftSchedule;
+    let shiftCount = 2;
+    let shiftEntries: ShiftEntry[] = [...defaultShiftEntries];
+    if (ss?.type === 'alternating') {
+      if (ss.shifts && ss.shifts.length > 0) {
+        shiftCount = ss.shifts.length;
+        shiftEntries = ss.shifts.map(s => ({ ...s }));
+      } else {
+        const activeDays = Object.keys(wh);
+        shiftEntries = [
+          { start: ss.shiftA?.start ?? '08:00', end: ss.shiftA?.end ?? '16:00', days: activeDays },
+          { start: ss.shiftB?.start ?? '12:00', end: ss.shiftB?.end ?? '20:00', days: activeDays },
+        ];
+      }
+    }
     setForm({
       name: e.name,
       role: e.role || 'pracownik',
@@ -113,10 +133,8 @@ const AdminEmployees = () => {
       daysOff: (e.daysOff || []).join(', '),
       canViewCalendars: e.canViewCalendars || [],
       shiftMode: ss?.type === 'alternating',
-      shiftAStart: ss?.shiftA?.start ?? '08:00',
-      shiftAEnd: ss?.shiftA?.end ?? '16:00',
-      shiftBStart: ss?.shiftB?.start ?? '12:00',
-      shiftBEnd: ss?.shiftB?.end ?? '20:00',
+      shiftCount,
+      shiftEntries,
       weekAStartDate: ss?.weekAStartDate ?? '',
     });
     setDialogOpen(true);
@@ -126,15 +144,43 @@ const AdminEmployees = () => {
     setForm(f => ({ ...f, workingHours: { ...f.workingHours, [day]: value } }));
   };
 
+  const updateShiftEntry = (index: number, field: 'start' | 'end', value: string) => {
+    setForm(f => ({
+      ...f,
+      shiftEntries: f.shiftEntries.map((e, i) => i === index ? { ...e, [field]: value } : e),
+    }));
+  };
+
+  const toggleShiftDay = (index: number, day: string) => {
+    setForm(f => ({
+      ...f,
+      shiftEntries: f.shiftEntries.map((e, i) => {
+        if (i !== index) return e;
+        return { ...e, days: e.days.includes(day) ? e.days.filter(d => d !== day) : [...e.days, day] };
+      }),
+    }));
+  };
+
+  const handleShiftCountChange = (count: number) => {
+    setForm(f => {
+      const entries = [...f.shiftEntries];
+      while (entries.length < count) entries.push({ start: '08:00', end: '16:00', days: [] });
+      return { ...f, shiftCount: count, shiftEntries: entries.slice(0, count) };
+    });
+  };
+
   const handleSave = async () => {
     if (!form.name) { toast.error('Wprowadź imię'); return; }
     try {
       const daysOff = form.daysOff.split(',').map(s => s.trim()).filter(Boolean);
-      const shiftSchedule = (form.shiftMode && form.shiftAStart && form.shiftAEnd && form.shiftBStart && form.shiftBEnd && form.weekAStartDate)
+      const shiftSchedule = (form.shiftMode && form.weekAStartDate)
         ? {
             type: 'alternating' as const,
-            shiftA: { start: form.shiftAStart, end: form.shiftAEnd },
-            shiftB: { start: form.shiftBStart, end: form.shiftBEnd },
+            shifts: form.shiftEntries.slice(0, form.shiftCount).map(e => ({
+              start: e.start || '08:00',
+              end: e.end || '16:00',
+              days: e.days,
+            })),
             weekAStartDate: snapToMonday(form.weekAStartDate),
           }
         : null;
@@ -207,13 +253,30 @@ const AdminEmployees = () => {
             </div>
 
             {emp.shiftSchedule?.type === 'alternating' && (
-              <div className="mb-3 flex items-center gap-2">
-                <span className="text-[11px] bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
-                  Zmiana A: {emp.shiftSchedule.shiftA.start}–{emp.shiftSchedule.shiftA.end}
-                </span>
-                <span className="text-[11px] bg-secondary text-muted-foreground px-2 py-1 rounded-full font-medium">
-                  Zmiana B: {emp.shiftSchedule.shiftB.start}–{emp.shiftSchedule.shiftB.end}
-                </span>
+              <div className="mb-3 space-y-1.5">
+                {emp.shiftSchedule.shifts && emp.shiftSchedule.shifts.length > 0 ? (
+                  emp.shiftSchedule.shifts.map((shift, i) => (
+                    <div key={i} className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[11px] px-2 py-1 rounded-full font-medium shrink-0 ${i === 0 ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'}`}>
+                        Zm. {String.fromCharCode(65 + i)}: {shift.start}–{shift.end}
+                      </span>
+                      {shift.days.length > 0 && (
+                        <span className="text-[11px] text-muted-foreground">
+                          {shift.days.map(d => dayLabelsShort[d] || d).join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
+                      Zm. A: {emp.shiftSchedule.shiftA?.start}–{emp.shiftSchedule.shiftA?.end}
+                    </span>
+                    <span className="text-[11px] bg-secondary text-muted-foreground px-2 py-1 rounded-full font-medium">
+                      Zm. B: {emp.shiftSchedule.shiftB?.start}–{emp.shiftSchedule.shiftB?.end}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
             {!emp.shiftSchedule && emp.workingHours && (
@@ -406,42 +469,82 @@ const AdminEmployees = () => {
                   onCheckedChange={(checked) => setForm(f => ({ ...f, shiftMode: !!checked }))}
                 />
                 <div>
-                  <p className="text-sm font-medium">Tryb zmianowy A/B</p>
-                  <p className="text-xs text-muted-foreground">Automatycznie zmienia godziny co tydzień</p>
+                  <p className="text-sm font-medium">Tryb zmianowy</p>
+                  <p className="text-xs text-muted-foreground">Automatycznie zmienia godziny i dni pracy w cyklu tygodniowym</p>
                 </div>
               </label>
 
               {form.shiftMode && (
-                <div className="space-y-3 pl-7">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs">Zmiana A — od</Label>
-                      <Input value={form.shiftAStart} onChange={e => setForm(f => ({ ...f, shiftAStart: e.target.value }))} placeholder="08:00" className="text-sm" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Zmiana A — do</Label>
-                      <Input value={form.shiftAEnd} onChange={e => setForm(f => ({ ...f, shiftAEnd: e.target.value }))} placeholder="16:00" className="text-sm" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs">Zmiana B — od</Label>
-                      <Input value={form.shiftBStart} onChange={e => setForm(f => ({ ...f, shiftBStart: e.target.value }))} placeholder="12:00" className="text-sm" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Zmiana B — do</Label>
-                      <Input value={form.shiftBEnd} onChange={e => setForm(f => ({ ...f, shiftBEnd: e.target.value }))} placeholder="20:00" className="text-sm" />
-                    </div>
-                  </div>
+                <div className="space-y-4 pl-7">
                   <div>
-                    <Label className="text-xs">Data z tygodnia zmiany A <span className="text-muted-foreground font-normal">(dowolna data)</span></Label>
+                    <Label className="text-xs mb-1.5 block">Liczba zmian</Label>
+                    <div className="flex gap-2">
+                      {[2, 3, 4].map(n => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => handleShiftCountChange(n)}
+                          className={`text-sm px-3 py-1.5 rounded-md border transition-colors ${form.shiftCount === n ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/50'}`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {form.shiftEntries.slice(0, form.shiftCount).map((entry, i) => (
+                    <div key={i} className="rounded-md border border-border p-3 space-y-3">
+                      <p className="text-sm font-medium">Zmiana {String.fromCharCode(65 + i)}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Od</Label>
+                          <Input
+                            type="time"
+                            value={entry.start}
+                            onChange={e => updateShiftEntry(i, 'start', e.target.value)}
+                            className="text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Do</Label>
+                          <Input
+                            type="time"
+                            value={entry.end}
+                            onChange={e => updateShiftEntry(i, 'end', e.target.value)}
+                            className="text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs mb-1.5 block">Dni tygodnia</Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {DAYS.map(({ key }) => {
+                            const checked = entry.days.includes(key);
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => toggleShiftDay(i, key)}
+                                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${checked ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/50'}`}
+                              >
+                                {dayLabelsShort[key]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div>
+                    <Label className="text-xs">Data referencyjna zmiany A <span className="text-muted-foreground font-normal">(dowolna data)</span></Label>
                     <Input
                       type="date"
                       value={form.weekAStartDate}
                       onChange={e => setForm(f => ({ ...f, weekAStartDate: e.target.value }))}
-                      className="text-sm"
+                      className="text-sm mt-1"
                     />
-                    <p className="text-[11px] text-muted-foreground mt-1">Wpisz datę z dowolnego dnia tygodnia, w którym pracownik ma zmianę A</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Wpisz dowolną datę z tygodnia, w którym pracownik ma zmianę A</p>
                   </div>
                 </div>
               )}

@@ -16,9 +16,11 @@ export interface Service {
 
 export interface ShiftSchedule {
   type: 'alternating';
-  shiftA: { start: string; end: string };
-  shiftB: { start: string; end: string };
+  shifts?: Array<{ start: string; end: string; days: string[] }>;
   weekAStartDate: string;
+  // legacy fields
+  shiftA?: { start: string; end: string };
+  shiftB?: { start: string; end: string };
 }
 
 export interface Employee {
@@ -166,12 +168,22 @@ export function getEffectiveHours(emp: Employee, date: Date): { start: string; e
   const keys = DAY_KEY_MAP[date.getDay()] ?? [];
 
   if (emp.shiftSchedule?.type === 'alternating') {
+    const ss = emp.shiftSchedule;
+    const refDate = new Date(ss.weekAStartDate);
+    const diff = differenceInCalendarWeeks(date, refDate, { weekStartsOn: 1 });
+
+    if (ss.shifts && ss.shifts.length > 0) {
+      const n = ss.shifts.length;
+      const shiftIndex = ((diff % n) + n) % n;
+      const shift = ss.shifts[shiftIndex];
+      const worksThisDay = keys.some(k => shift.days.includes(k));
+      return worksThisDay ? { start: shift.start, end: shift.end } : null;
+    }
+
+    // legacy shiftA/shiftB format
     const hasDay = keys.some(k => k in emp.workingHours);
     if (!hasDay) return null;
-    const { shiftA, shiftB, weekAStartDate } = emp.shiftSchedule;
-    const refDate = new Date(weekAStartDate);
-    const diff = differenceInCalendarWeeks(date, refDate, { weekStartsOn: 1 });
-    return ((diff % 2) + 2) % 2 === 0 ? shiftA : shiftB;
+    return ((diff % 2) + 2) % 2 === 0 ? ss.shiftA! : ss.shiftB!;
   }
 
   let wh: { start: string; end: string } | string | undefined;
