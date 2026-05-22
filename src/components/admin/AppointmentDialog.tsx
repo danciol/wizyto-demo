@@ -41,6 +41,7 @@ const AppointmentDialog = ({
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientEmail, setClientEmail] = useState('');
+  const [clientId, setClientId] = useState('');
   const [serviceId, setServiceId] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [date, setDate] = useState('');
@@ -72,7 +73,8 @@ const AppointmentDialog = ({
       ).slice(0, 6)
     : [];
 
-  const selectClient = (c: { name: string; phone: string; email: string }) => {
+  const selectClient = (c: { id: string; name: string; phone: string; email: string }) => {
+    setClientId(c.id);
     setClientName(c.name);
     setClientPhone(formatPhoneNumber(c.phone));
     setClientEmail(c.email);
@@ -82,6 +84,7 @@ const AppointmentDialog = ({
 
   useEffect(() => {
     if (appointment) {
+      setClientId(appointment.clientId || '');
       setClientName(appointment.clientName);
       setClientPhone(formatPhoneNumber(appointment.clientPhone));
       setClientEmail(appointment.clientEmail);
@@ -94,6 +97,7 @@ const AppointmentDialog = ({
       setStatus(appointment.status);
       setNotes(appointment.notes || '');
     } else if (defaultDate) {
+      setClientId('');
       setClientName('');
       setClientPhone('');
       setClientEmail('');
@@ -131,6 +135,8 @@ const AppointmentDialog = ({
       status,
       createdAt: appointment?.createdAt || new Date().toISOString(),
     };
+    const resolvedClientId = clientId || appointment?.clientId;
+    if (resolvedClientId) data.clientId = resolvedClientId;
     if (notes) data.notes = notes;
     if (appointment?.googleCalendarEventId) data.googleCalendarEventId = appointment.googleCalendarEventId;
     return data;

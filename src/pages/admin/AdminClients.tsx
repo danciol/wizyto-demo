@@ -40,7 +40,7 @@ const statusClasses = {
 
 const AdminClients = () => {
   const { clients, loading: loadingC, addClient, updateClient } = useClients();
-  const { appointments, loading: loadingA } = useAppointments();
+  const { appointments, loading: loadingA, updateAppointment } = useAppointments();
   const { services, loading: loadingS } = useServices();
   const { can } = usePlan();
   const { employee } = useAuth();
@@ -149,7 +149,13 @@ const AdminClients = () => {
           email,
           appointmentIds,
         });
-        toast.success('Dane klienta zapisane');
+
+        const linked = appointments.filter(a => a.clientId === editingClient.id);
+        await Promise.all(linked.map(a =>
+          updateAppointment(a.id, { clientName: name, clientPhone: phone, clientEmail: email })
+        ));
+
+        toast.success(`Dane klienta zapisane${linked.length > 0 ? ` (zaktualizowano ${linked.length} wizyt)` : ''}`);
       } else {
         await addClient({
           name,

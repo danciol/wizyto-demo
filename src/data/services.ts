@@ -46,6 +46,7 @@ export interface Appointment {
   clientName: string;
   clientPhone: string;
   clientEmail: string;
+  clientId?: string;
   date: string;
   duration: number;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
