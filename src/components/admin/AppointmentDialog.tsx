@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { Trash2, AlertTriangle } from 'lucide-react';
+import { Trash2, AlertTriangle, UserSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Appointment, Service, Employee, getEffectiveHours } from '@/data/services';
+import { useClients } from '@/hooks/useFirestore';
 
 export function formatPhoneNumber(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 9);
@@ -35,6 +36,7 @@ const AppointmentDialog = ({
   open, onOpenChange, appointment, defaultDate, services, employees, onSave, onDelete, hidePhone, onRevealPhone,
 }: AppointmentDialogProps) => {
   const isEdit = !!appointment;
+  const { clients } = useClients();
 
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -49,6 +51,34 @@ const AppointmentDialog = ({
   const [warning, setWarning] = useState<string | null>(null);
   const [pendingData, setPendingData] = useState<Appointment | null>(null);
   const [phoneRevealed, setPhoneRevealed] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const clientSuggestions = clientSearch.trim().length >= 1
+    ? clients.filter(c =>
+        c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+        c.phone.includes(clientSearch)
+      ).slice(0, 6)
+    : [];
+
+  const selectClient = (c: { name: string; phone: string; email: string }) => {
+    setClientName(c.name);
+    setClientPhone(formatPhoneNumber(c.phone));
+    setClientEmail(c.email);
+    setClientSearch('');
+    setShowSuggestions(false);
+  };
 
   useEffect(() => {
     if (appointment) {
@@ -223,7 +253,34 @@ const AppointmentDialog = ({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="appt-client">Klient</Label>
+            <Label>Klient</Label>
+            <div ref={searchRef} className="relative">
+              <div className="relative">
+                <UserSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Szukaj w bazie klientów..."
+                  value={clientSearch}
+                  onChange={e => { setClientSearch(e.target.value); setShowSuggestions(true); }}
+                  onFocus={() => setShowSuggestions(true)}
+                  className="pl-9 text-sm"
+                />
+              </div>
+              {showSuggestions && clientSuggestions.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden">
+                  {clientSuggestions.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-secondary transition-colors"
+                      onMouseDown={e => { e.preventDefault(); selectClient(c); }}
+                    >
+                      <p className="text-sm font-medium">{c.name}</p>
+                      <p className="text-xs text-muted-foreground">{formatPhoneNumber(c.phone)}{c.email ? ` · ${c.email}` : ''}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Input id="appt-client" placeholder="Imię i nazwisko" value={clientName} onChange={e => setClientName(e.target.value)} />
           </div>
 
