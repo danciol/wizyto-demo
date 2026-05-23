@@ -278,7 +278,7 @@ const AdminAppointments = () => {
                           >
                             <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Potwierdź" disabled={appt.status === 'confirmed'} onClick={() => handleStatusChange(appt.id, 'confirmed')}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Potwierdź" disabled={appt.status === 'confirmed' || appt.status === 'completed' || appt.status === 'cancelled'} onClick={() => handleStatusChange(appt.id, 'confirmed')}>
                             <CheckCircle className="w-3.5 h-3.5 text-primary" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Anuluj" disabled={appt.status === 'cancelled'} onClick={() => handleStatusChange(appt.id, 'cancelled')}>
