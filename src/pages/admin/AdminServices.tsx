@@ -10,6 +10,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
 const AdminServices = () => {
@@ -17,6 +21,7 @@ const AdminServices = () => {
   const { employees, loading: loadingE } = useEmployees();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Service | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Service | null>(null);
   const [form, setForm] = useState({ name: '', price: '', duration: '', category: '', description: '', employeeIds: [] as string[], selfBooking: true, depositAmount: '' });
 
   const openNew = () => {
@@ -78,12 +83,15 @@ const AdminServices = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
     try {
-      await deleteService(id);
+      await deleteService(confirmDelete.id);
       toast.success('Usługa usunięta');
     } catch {
       toast.error('Błąd usuwania');
+    } finally {
+      setConfirmDelete(null);
     }
   };
 
@@ -121,7 +129,7 @@ const AdminServices = () => {
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)}>
                   <Edit2 className="w-3.5 h-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(s.id)}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setConfirmDelete(s)}>
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
@@ -221,6 +229,23 @@ const AdminServices = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={open => { if (!open) setConfirmDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Usunąć usługę?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Usługa <strong>{confirmDelete?.name}</strong> zostanie trwale usunięta. Tej operacji nie można cofnąć.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Nie, zostaw</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleDelete}>
+              Tak, usuń usługę
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
