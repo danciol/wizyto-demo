@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus, Loader2 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Appointment, getEffectiveHours } from '@/data/services';
 import { useAppointments, useServices, useEmployees, useClients, useTimeBlocks } from '@/hooks/useFirestore';
@@ -53,6 +57,7 @@ const AdminCalendar = () => {
   const [newApptDate, setNewApptDate] = useState<Date | null>(null);
 
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>('all');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const isAdmin = currentUser?.role === 'admin';
   const isSalon = currentUser?.role === 'salon';
@@ -152,7 +157,14 @@ const AdminCalendar = () => {
     } catch { toast.error('Błąd zapisu'); }
   };
 
-  const handleDeleteAppointment = async (id: string) => {
+  const handleDeleteAppointment = (id: string) => {
+    setConfirmDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    const id = confirmDeleteId;
+    setConfirmDeleteId(null);
     try {
       const appt = appointments.find(a => a.id === id);
       if (appt?.googleCalendarEventId) {
@@ -443,6 +455,22 @@ const AdminCalendar = () => {
         }}
       />
 
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={open => { if (!open) setConfirmDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Usunąć wizytę?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Wizyta zostanie trwale usunięta. Tej operacji nie można cofnąć.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Nie, zostaw</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={confirmDelete}>
+              Tak, usuń wizytę
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

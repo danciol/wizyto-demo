@@ -7,6 +7,10 @@ import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import type { Appointment } from '@/data/services';
 import { CheckCircle, X, Loader2, Search, MessageSquare } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { usePlan } from '@/hooks/usePlan';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, buildCalendarEvent } from '@/lib/googleCalendar';
@@ -50,6 +54,7 @@ const AdminAppointments = () => {
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const [serviceFilter, setServiceFilter] = useState('all');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
 
   const loading = loadingA || loadingS || loadingE;
 
@@ -99,7 +104,12 @@ const AdminAppointments = () => {
 
   const hasGoogleCal = can('online_booking');
 
-  const handleStatusChange = async (id: string, status: Appointment['status']) => {
+  const handleStatusChange = (id: string, status: Appointment['status']) => {
+    if (status === 'cancelled') { setConfirmCancelId(id); return; }
+    doStatusChange(id, status);
+  };
+
+  const doStatusChange = async (id: string, status: Appointment['status']) => {
     setUpdatingId(id);
     try {
       await updateAppointment(id, { status });
@@ -277,6 +287,23 @@ const AdminAppointments = () => {
           </table>
         </div>
       </div>
+
+      <AlertDialog open={!!confirmCancelId} onOpenChange={open => { if (!open) setConfirmCancelId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Anulować wizytę?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmCancelId && (() => { const a = appointments.find(x => x.id === confirmCancelId); return a ? <>Wizyta klienta <strong>{a.clientName}</strong> zostanie oznaczona jako anulowana.</> : 'Wizyta zostanie anulowana.'; })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Nie, zostaw</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => { if (confirmCancelId) { doStatusChange(confirmCancelId, 'cancelled'); setConfirmCancelId(null); } }}>
+              Tak, anuluj wizytę
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
