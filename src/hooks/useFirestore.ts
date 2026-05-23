@@ -85,7 +85,10 @@ export function useAppointments() {
   const { data, loading } = useCollection<Appointment>('appointments');
 
   const addAppointment = async (appointment: Omit<Appointment, 'id'>): Promise<string> => {
-    const ref = await addDoc(collection(db, 'appointments'), appointment);
+    const ref = await addDoc(collection(db, 'appointments'), {
+      ...appointment,
+      updatedAt: appointment.updatedAt ?? appointment.createdAt,
+    });
     return ref.id;
   };
 

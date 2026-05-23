@@ -53,9 +53,11 @@ export interface Appointment {
   googleCalendarEventId?: string;
   notes?: string;
   createdAt: string;
-  depositAmount?: number;         // wymagana zaliczka w zł
+  depositAmount?: number;
   depositStatus?: 'none' | 'pending' | 'paid' | 'refunded';
-  depositOrderId?: string;        // ID zamówienia P24 (sandbox lub live)
+  depositOrderId?: string;
+  reviewSmsSent?: boolean;
+  importSource?: string;
 }
 
 export interface Client {

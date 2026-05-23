@@ -80,14 +80,18 @@ const AdminClients = () => {
 
   const clientAppointmentsMap = useMemo(() => {
     const map = new Map<string, typeof appointments>();
+    const normalizePhone = (p: string) => p.replace(/\D/g, '').slice(-9);
 
     clients.forEach((client) => {
       const linkedIds = new Set(client.appointmentIds || []);
+      const clientPhoneNorm = normalizePhone(client.phone || '');
 
       appointments.forEach((appointment) => {
+        const apptPhoneNorm = normalizePhone(appointment.clientPhone || '');
         if (
           linkedIds.has(appointment.id) ||
-          (client.phone && appointment.clientPhone === client.phone) ||
+          appointment.clientId === client.id ||
+          (clientPhoneNorm && apptPhoneNorm && apptPhoneNorm === clientPhoneNorm) ||
           appointment.clientName === client.name
         ) {
           linkedIds.add(appointment.id);
@@ -133,10 +137,15 @@ const AdminClients = () => {
 
     if (!name) return;
 
+    const normalizePhone = (p: string) => p.replace(/\D/g, '').slice(-9);
+    const phoneNorm = normalizePhone(phone);
     const existingLinks = editingClient
       ? clientAppointmentsMap.get(editingClient.id)?.map((appointment) => appointment.id) || []
       : appointments
-          .filter((appointment) => (phone && appointment.clientPhone === phone) || appointment.clientName === name)
+          .filter((appointment) =>
+            (phoneNorm && normalizePhone(appointment.clientPhone || '') === phoneNorm) ||
+            appointment.clientName === name
+          )
           .map((appointment) => appointment.id);
 
     const appointmentIds = Array.from(new Set([...(editingClient?.appointmentIds || []), ...existingLinks]));
