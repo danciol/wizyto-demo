@@ -53,6 +53,7 @@ const AdminAppointments = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | Appointment['status']>('all');
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const [serviceFilter, setServiceFilter] = useState('all');
+  const [timeFilter, setTimeFilter] = useState<'all' | 'upcoming' | 'past'>('all');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
 
@@ -70,6 +71,7 @@ const AdminAppointments = () => {
 
   const filteredAppointments = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const now = new Date();
 
     return [...appointments]
       .filter((appt) => {
@@ -79,6 +81,8 @@ const AdminAppointments = () => {
         if (statusFilter !== 'all' && appt.status !== statusFilter) return false;
         if (employeeFilter !== 'all' && appt.employeeId !== employeeFilter) return false;
         if (serviceFilter !== 'all' && appt.serviceId !== serviceFilter) return false;
+        if (timeFilter === 'upcoming' && new Date(appt.date) < now) return false;
+        if (timeFilter === 'past' && new Date(appt.date) >= now) return false;
 
         if (!query) return true;
 
@@ -91,15 +95,16 @@ const AdminAppointments = () => {
         ].some((value) => value.toLowerCase().includes(query));
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [appointments, employeeFilter, employeeMap, search, serviceFilter, serviceMap, statusFilter]);
+  }, [appointments, employeeFilter, employeeMap, search, serviceFilter, serviceMap, statusFilter, timeFilter]);
 
-  const hasActiveFilters = search.trim() || statusFilter !== 'all' || employeeFilter !== 'all' || serviceFilter !== 'all';
+  const hasActiveFilters = search.trim() || statusFilter !== 'all' || employeeFilter !== 'all' || serviceFilter !== 'all' || timeFilter !== 'all';
 
   const resetFilters = () => {
     setSearch('');
     setStatusFilter('all');
     setEmployeeFilter('all');
     setServiceFilter('all');
+    setTimeFilter('all');
   };
 
   const hasGoogleCal = can('online_booking');
@@ -178,6 +183,11 @@ const AdminAppointments = () => {
               {services.map((service) => (
                 <option key={service.id} value={service.id}>{service.name}</option>
               ))}
+            </NativeSelect>
+            <NativeSelect value={timeFilter} onChange={(e) => setTimeFilter(e.target.value as 'all' | 'upcoming' | 'past')} className="h-10">
+              <option value="all">Wszystkie terminy</option>
+              <option value="upcoming">Nadchodzące</option>
+              <option value="past">Minione</option>
             </NativeSelect>
           </div>
 
