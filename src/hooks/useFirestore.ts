@@ -64,13 +64,19 @@ export function useServices() {
 export function useEmployees() {
   const { data, loading } = useCollection<Employee>('employees');
 
+  const normalizeEmployee = <T extends Partial<Employee>>(e: T): T => ({
+    ...e,
+    ...(e.email !== undefined && { email: e.email.toLowerCase().trim() }),
+    ...(e.login !== undefined && { login: e.login.toLowerCase().trim() }),
+  });
+
   const addEmployee = async (employee: Omit<Employee, 'id'>) => {
-    await addDoc(collection(db, 'employees'), employee);
+    await addDoc(collection(db, 'employees'), normalizeEmployee(employee));
   };
 
   const updateEmployee = async (id: string, updates: Partial<Employee>) => {
     const { id: _, ...data } = updates as Employee;
-    await updateDoc(doc(db, 'employees', id), data);
+    await updateDoc(doc(db, 'employees', id), normalizeEmployee(data));
   };
 
   const deleteEmployee = async (id: string) => {
