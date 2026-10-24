@@ -120,7 +120,7 @@ const AppointmentDialog = ({
 
   const buildAppointmentData = (): Appointment => {
     const dateTime = new Date(`${date}T${time}`);
-    const resolvedPhone = (hidePhone && isEdit && !phoneRevealed)
+    const resolvedPhone = (hidePhone && isEdit)
       ? (appointment?.clientPhone || '')
       : clientPhone.replace(/-/g, '').replace(/\s/g, '');
     const data: Appointment = {
@@ -138,7 +138,6 @@ const AppointmentDialog = ({
     const resolvedClientId = clientId || appointment?.clientId;
     if (resolvedClientId) data.clientId = resolvedClientId;
     if (notes) data.notes = notes;
-    if (appointment?.googleCalendarEventId) data.googleCalendarEventId = appointment.googleCalendarEventId;
     return data;
   };
 
@@ -192,15 +191,17 @@ const AppointmentDialog = ({
       ))
     : services.filter(s => s.active !== false);
 
+  const bookableEmployees = employees.filter(e => (e.role || 'pracownik') !== 'salon');
+
   const matchedEmployees = serviceId
-    ? employees.filter((employee) =>
+    ? bookableEmployees.filter((employee) =>
         employee.services?.includes(serviceId) ||
         selectedService?.employeeIds?.includes(employee.id) ||
         selectedService?.employees?.includes(employee.id)
       )
-    : employees;
+    : bookableEmployees;
 
-  const availableEmployees = matchedEmployees.length > 0 ? matchedEmployees : employees;
+  const availableEmployees = matchedEmployees.length > 0 ? matchedEmployees : bookableEmployees;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

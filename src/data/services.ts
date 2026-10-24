@@ -17,7 +17,7 @@ export interface Service {
 export interface ShiftSchedule {
   type: 'alternating';
   shifts?: Array<{ start: string; end: string; days: string[] }>;
-  weekAStartDate: string;
+  weekAStartDate: string; // ISO date of any day in a Shift-A week (stored as Monday)
   // legacy fields
   shiftA?: { start: string; end: string };
   shiftB?: { start: string; end: string };
@@ -50,9 +50,9 @@ export interface Appointment {
   date: string;
   duration: number;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
-  googleCalendarEventId?: string;
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
   depositAmount?: number;
   depositStatus?: 'none' | 'pending' | 'paid' | 'refunded';
   depositOrderId?: string;

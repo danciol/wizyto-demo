@@ -39,7 +39,7 @@ const AdminTimeBlocks = () => {
     }
     setSaving(true);
     try {
-      await addTimeBlock({ employeeId: resolvedEmpId, date, startTime, endTime, note: note.trim() || undefined });
+      await addTimeBlock({ employeeId: resolvedEmpId, date, startTime, endTime, ...(note.trim() ? { note: note.trim() } : {}) });
       toast.success('Blokada dodana');
       setDate('');
       setStartTime('');

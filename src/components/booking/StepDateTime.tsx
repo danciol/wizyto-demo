@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { format, addDays, startOfDay, isSameDay, setHours, setMinutes, isAfter } from 'date-fns';
 import { pl } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight as ChevronRightIcon, Clock } from 'lucide-react';
 import { Employee, Appointment } from '@/data/services';
 import { Button } from '@/components/ui/button';
 
@@ -13,6 +13,7 @@ interface Props {
   selectedTime: string | null;
   onSelect: (date: Date, time: string) => void;
   onBack: () => void;
+  onWaitingList?: (date: Date) => void;
 }
 
 const dayKeys: Record<number, string[]> = {
@@ -34,6 +35,9 @@ function getDayHours(workingHours: Employee['workingHours'], dayOfWeek: number) 
 }
 
 function generateSlots(employee: Employee, date: Date, duration: number, appointments: Appointment[]): string[] {
+  const dayStr = format(date, 'yyyy-MM-dd');
+  if ((employee.daysOff || []).includes(dayStr)) return [];
+
   const hours = getDayHours(employee.workingHours, date.getDay());
   if (!hours) return [];
 
@@ -78,7 +82,7 @@ function generateSlots(employee: Employee, date: Date, duration: number, appoint
   return slots;
 }
 
-export function StepDateTime({ employee, serviceDuration, appointments, selectedDate, selectedTime, onSelect, onBack }: Props) {
+export function StepDateTime({ employee, serviceDuration, appointments, selectedDate, selectedTime, onSelect, onBack, onWaitingList }: Props) {
   const today = startOfDay(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [pickedDate, setPickedDate] = useState<Date | null>(selectedDate);
@@ -148,25 +152,42 @@ export function StepDateTime({ employee, serviceDuration, appointments, selected
             Dostępne godziny — {format(pickedDate, 'EEEE, d MMMM', { locale: pl })}
           </p>
           {slots.length > 0 ? (
-            <div className="grid grid-cols-4 gap-2 max-h-[30vh] overflow-y-auto">
-              {slots.map(time => (
-                <button
-                  key={time}
-                  onClick={() => onSelect(pickedDate, time)}
-                  className={`py-2.5 rounded-lg text-sm font-medium transition-all border ${
-                    selectedTime === time
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'border-border hover:border-primary/50 hover:bg-primary/5 text-foreground'
-                  }`}
-                >
-                  {time}
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-4 gap-2 max-h-[30vh] overflow-y-auto">
+                {slots.map(time => (
+                  <button
+                    key={time}
+                    onClick={() => onSelect(pickedDate, time)}
+                    className={`py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                      selectedTime === time
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'border-border hover:border-primary/50 hover:bg-primary/5 text-foreground'
+                    }`}
+                  >
+                    {time}
+                  </button>
+                ))}
+              </div>
+              {onWaitingList && (
+                <div className="mt-4 pt-4 border-t border-border text-center">
+                  <p className="text-xs text-muted-foreground mb-2">Żaden termin Ci nie odpowiada?</p>
+                  <Button variant="ghost" size="sm" onClick={() => onWaitingList(pickedDate)} className="gap-2 text-muted-foreground hover:text-foreground">
+                    <Clock size={14} />
+                    Zapisz się na listę oczekujących
+                  </Button>
+                </div>
+              )}
+            </>
           ) : (
-            <p className="text-center text-muted-foreground text-sm py-6">
-              Brak dostępnych terminów w tym dniu
-            </p>
+            <div className="text-center py-6 space-y-3">
+              <p className="text-muted-foreground text-sm">Brak dostępnych terminów w tym dniu</p>
+              {onWaitingList && (
+                <Button variant="outline" size="sm" onClick={() => onWaitingList(pickedDate)} className="gap-2">
+                  <Clock size={14} />
+                  Zapisz się na listę oczekujących
+                </Button>
+              )}
+            </div>
           )}
         </div>
       )}

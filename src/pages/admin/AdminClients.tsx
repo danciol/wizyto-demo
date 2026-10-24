@@ -276,7 +276,6 @@ const AdminClients = () => {
 
                 {isExpanded && clientAppts.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Historia wizyt</p>
                     {can('client_history') && (() => {
                       const nonCancelled = clientAppts.filter(a => a.status !== 'cancelled');
                       const totalValue = nonCancelled.reduce((sum, a) => {
@@ -296,6 +295,7 @@ const AdminClients = () => {
                         </div>
                       );
                     })()}
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Historia wizyt</p>
                     {clientAppts.map(appt => {
                       const svc = services.find(s => s.id === appt.serviceId);
                       return (

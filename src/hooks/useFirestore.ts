@@ -100,7 +100,7 @@ export function useAppointments() {
 
   const updateAppointment = async (id: string, updates: Partial<Appointment>) => {
     const { id: _, ...data } = updates as Appointment;
-    await updateDoc(doc(db, 'appointments', id), data);
+    await updateDoc(doc(db, 'appointments', id), { ...data, updatedAt: new Date().toISOString() });
   };
 
   const deleteAppointment = async (id: string) => {
@@ -126,30 +126,6 @@ export function useClients() {
   return { clients: data, loading, addClient, updateClient };
 }
 
-// --- Time Blocks ---
-export interface TimeBlock {
-  id: string;
-  employeeId: string;
-  date: string;      // yyyy-MM-dd
-  startTime: string; // HH:mm
-  endTime: string;   // HH:mm
-  note?: string;
-}
-
-export function useTimeBlocks() {
-  const { data, loading } = useCollection<TimeBlock>('time_blocks', orderBy('date', 'asc'));
-
-  const addTimeBlock = async (block: Omit<TimeBlock, 'id'>) => {
-    await addDoc(collection(db, 'time_blocks'), block);
-  };
-
-  const deleteTimeBlock = async (id: string) => {
-    await deleteDoc(doc(db, 'time_blocks', id));
-  };
-
-  return { timeBlocks: data, loading, addTimeBlock, deleteTimeBlock };
-}
-
 // --- Settings ---
 export function useSettings() {
   const [depositAmount, setDepositAmount] = useState<number>(0);
@@ -158,17 +134,20 @@ export function useSettings() {
   const [reminderTemplate, setReminderTemplate] = useState<string>('');
   const [cloudinaryCloudName, setCloudinaryCloudName] = useState<string>('');
   const [cloudinaryUploadPreset, setCloudinaryUploadPreset] = useState<string>('');
+  const [googleReviewsUrl, setGoogleReviewsUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'settings', 'global'), (snap) => {
       if (snap.exists()) {
-        setDepositAmount(snap.data().depositAmount ?? 0);
-        setTextBeeApiKey(snap.data().textBeeApiKey ?? '');
-        setTextBeeDeviceId(snap.data().textBeeDeviceId ?? '');
-        setReminderTemplate(snap.data().reminderTemplate ?? '');
-        setCloudinaryCloudName(snap.data().cloudinaryCloudName ?? '');
-        setCloudinaryUploadPreset(snap.data().cloudinaryUploadPreset ?? '');
+        const d = snap.data();
+        setDepositAmount(d.depositAmount ?? 0);
+        setTextBeeApiKey(d.textBeeApiKey ?? '');
+        setTextBeeDeviceId(d.textBeeDeviceId ?? '');
+        setReminderTemplate(d.reminderTemplate ?? '');
+        setCloudinaryCloudName(d.cloudinaryCloudName ?? '');
+        setCloudinaryUploadPreset(d.cloudinaryUploadPreset ?? '');
+        setGoogleReviewsUrl(d.googleReviewsUrl ?? '');
       } else {
         setDepositAmount(0);
         setTextBeeApiKey('');
@@ -176,6 +155,7 @@ export function useSettings() {
         setReminderTemplate('');
         setCloudinaryCloudName('');
         setCloudinaryUploadPreset('');
+        setGoogleReviewsUrl('');
       }
       setLoading(false);
     }, () => setLoading(false));
@@ -206,5 +186,67 @@ export function useSettings() {
     );
   };
 
-  return { depositAmount, textBeeApiKey, textBeeDeviceId, reminderTemplate, cloudinaryCloudName, cloudinaryUploadPreset, loading, saveDepositAmount, saveTextBee, saveReminderTemplate, saveCloudinary };
+  const saveGoogleReviews = async (url: string) => {
+    await import('firebase/firestore').then(({ setDoc }) =>
+      setDoc(doc(db, 'settings', 'global'), { googleReviewsUrl: url }, { merge: true })
+    );
+  };
+
+  return { depositAmount, textBeeApiKey, textBeeDeviceId, reminderTemplate, cloudinaryCloudName, cloudinaryUploadPreset, googleReviewsUrl, loading, saveDepositAmount, saveTextBee, saveReminderTemplate, saveCloudinary, saveGoogleReviews };
+}
+
+// --- Time Blocks ---
+export interface TimeBlock {
+  id: string;
+  employeeId: string;
+  date: string;      // yyyy-MM-dd
+  startTime: string; // HH:mm
+  endTime: string;   // HH:mm
+  note?: string;
+}
+
+export function useTimeBlocks() {
+  const { data, loading } = useCollection<TimeBlock>('time_blocks', orderBy('date', 'asc'));
+
+  const addTimeBlock = async (block: Omit<TimeBlock, 'id'>) => {
+    await addDoc(collection(db, 'time_blocks'), block);
+  };
+
+  const deleteTimeBlock = async (id: string) => {
+    await deleteDoc(doc(db, 'time_blocks', id));
+  };
+
+  return { timeBlocks: data, loading, addTimeBlock, deleteTimeBlock };
+}
+
+// --- Waiting List ---
+export interface WaitingListEntry {
+  id: string;
+  serviceId: string;
+  serviceName: string;
+  employeeId: string;
+  employeeName: string;
+  preferredDate: string;
+  clientName: string;
+  clientPhone: string;
+  createdAt: string;
+  notified: boolean;
+}
+
+export function useWaitingList() {
+  const { data, loading } = useCollection<WaitingListEntry>('waiting_list', orderBy('createdAt', 'desc'));
+
+  const addToWaitingList = async (entry: Omit<WaitingListEntry, 'id'>) => {
+    await addDoc(collection(db, 'waiting_list'), entry);
+  };
+
+  const removeFromWaitingList = async (id: string) => {
+    await deleteDoc(doc(db, 'waiting_list', id));
+  };
+
+  const markNotified = async (id: string) => {
+    await updateDoc(doc(db, 'waiting_list', id), { notified: true });
+  };
+
+  return { waitingList: data, loading, addToWaitingList, removeFromWaitingList, markNotified };
 }

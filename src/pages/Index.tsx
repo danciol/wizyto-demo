@@ -7,8 +7,12 @@ import { GallerySection } from '@/components/landing/GallerySection';
 import { ContactSection } from '@/components/landing/ContactSection';
 import { Footer } from '@/components/landing/Footer';
 import { BookingWizard } from '@/components/booking/BookingWizard';
+import { usePlan } from '@/hooks/usePlan';
 
 const Index = () => {
+  const { can } = usePlan();
+  const canBook = can('online_booking');
+
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingServiceId, setBookingServiceId] = useState<string | undefined>();
 
@@ -19,15 +23,15 @@ const Index = () => {
 
   return (
     <div className="min-h-screen">
-      <Navbar onBooking={() => openBooking()} />
-      <HeroSection onBooking={() => openBooking()} />
+      <Navbar onBooking={canBook ? () => openBooking() : undefined} />
+      <HeroSection onBooking={canBook ? () => openBooking() : undefined} />
       <AboutSection />
-      <ServicesSection onBookService={(id) => openBooking(id)} />
+      <ServicesSection onBookService={canBook ? (id) => openBooking(id) : undefined} />
       <GallerySection />
       <ContactSection />
       <Footer />
 
-      {bookingOpen && (
+      {canBook && bookingOpen && (
         <BookingWizard
           onClose={() => setBookingOpen(false)}
           initialServiceId={bookingServiceId}

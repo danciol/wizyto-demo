@@ -80,14 +80,16 @@ export function ServicesSection({ onBookService }: Props) {
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock size={12} /> {service.duration} min
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-primary hover:text-primary/80 hover:bg-primary/5 text-xs p-0 h-auto font-semibold"
-                      onClick={() => onBookService?.(service.id)}
-                    >
-                      Umów się <ChevronRight size={14} />
-                    </Button>
+                    {onBookService && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-primary hover:text-primary/80 hover:bg-primary/5 text-xs p-0 h-auto font-semibold"
+                        onClick={() => onBookService(service.id)}
+                      >
+                        Umów się <ChevronRight size={14} />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

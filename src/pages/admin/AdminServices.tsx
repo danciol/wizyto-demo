@@ -201,7 +201,7 @@ const AdminServices = () => {
             <div>
               <Label className="mb-2 block">Przypisani pracownicy</Label>
               <div className="space-y-2">
-                {employees.map(emp => (
+                {employees.filter(e => (e.role || 'pracownik') !== 'salon').map(emp => (
                   <label key={emp.id} className="flex items-center gap-2 cursor-pointer">
                     <Checkbox
                       checked={form.employeeIds.includes(emp.id)}

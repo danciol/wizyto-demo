@@ -1,11 +1,12 @@
 import { Outlet, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Scissors, Users, ClipboardList,
-  LogOut, Menu, X, UserCheck, MessageSquare, Settings, Images, TrendingUp, Ban,
+  LogOut, Menu, X, UserCheck, MessageSquare, Settings, Images, TrendingUp, Clock, CalendarOff, Ban,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAppointments } from '@/hooks/useFirestore';
+import { PwaInstallBanner } from './PwaInstallBanner';
+import { useAppointments, useWaitingList } from '@/hooks/useFirestore';
 import { usePlan } from '@/hooks/usePlan';
 import type { FeatureKey } from '@/config/plans';
 
@@ -20,11 +21,13 @@ interface NavLink {
 const allLinks: NavLink[] = [
   { to: '/admin',              label: 'Dashboard',   icon: LayoutDashboard, roles: ['admin','pracownik','salon'], feature: 'dashboard' },
   { to: '/admin/kalendarz',    label: 'Kalendarz',   icon: Calendar,        roles: ['admin','pracownik','salon'], feature: 'calendar' },
+  { to: '/admin/dni-wolne',   label: 'Dni wolne',   icon: CalendarOff,     roles: ['admin','pracownik'], feature: 'calendar' },
   { to: '/admin/wizyty',       label: 'Wizyty',      icon: ClipboardList,   roles: ['admin'],             feature: 'appointments' },
   { to: '/admin/klienci',      label: 'Klienci',     icon: UserCheck,       roles: ['admin'],             feature: 'clients' },
   { to: '/admin/pracownicy',   label: 'Pracownicy',  icon: Users,           roles: ['admin'],             feature: 'employees' },
   { to: '/admin/uslugi',       label: 'Usługi',      icon: Scissors,        roles: ['admin'],             feature: 'services' },
   { to: '/admin/wiadomosci',   label: 'Wiadomości',  icon: MessageSquare,   roles: ['admin'],             feature: 'messages' },
+  { to: '/admin/oczekujacy',   label: 'Oczekujący',  icon: Clock,           roles: ['admin'],             feature: 'online_booking' },
   { to: '/admin/galeria',      label: 'Galeria',     icon: Images,          roles: ['admin'],             feature: 'gallery' },
   { to: '/admin/raporty',      label: 'Raporty',     icon: TrendingUp,      roles: ['admin'],             feature: 'reports' },
   { to: '/admin/blokady',      label: 'Blokady terminów', icon: Ban,        roles: ['admin'],             feature: 'time_blocks' },
@@ -36,7 +39,9 @@ export function AdminLayout() {
   const navigate = useNavigate();
   const { isAuthenticated, employee, logout, loading } = useAuth();
   const { appointments } = useAppointments();
+  const { waitingList } = useWaitingList();
   const { can } = usePlan();
+  const pendingWaiting = waitingList.filter(e => !e.notified).length;
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (loading) return (
@@ -59,12 +64,12 @@ export function AdminLayout() {
 
   return (
     <div className="min-h-screen flex bg-secondary/30">
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform md:relative md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between p-5 border-b border-border">
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform md:relative md:translate-x-0 flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
           <Link to="/" className="font-heading text-xl font-bold text-primary">Bella Beauty Studio</Link>
           <button className="md:hidden" onClick={() => setSidebarOpen(false)}><X className="w-5 h-5" /></button>
         </div>
-        <nav className="p-3 space-y-1">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {visibleLinks.map((link) => {
             const active = location.pathname === link.to;
             const isWizyty = link.to === '/admin/wizyty';
@@ -79,11 +84,16 @@ export function AdminLayout() {
                     {pendingCount}
                   </span>
                 )}
+                {link.to === '/admin/oczekujacy' && pendingWaiting > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                    {pendingWaiting}
+                  </span>
+                )}
               </Link>
             );
           })}
         </nav>
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border">
+        <div className="shrink-0 p-3 border-t border-border">
           <div className="px-4 py-2 mb-2">
             <p className="text-xs text-muted-foreground">Zalogowano jako</p>
             <p className="text-sm font-medium text-foreground truncate">{employee?.name}</p>
@@ -112,6 +122,7 @@ export function AdminLayout() {
         </header>
         <main className="flex-1 p-4 md:p-6 overflow-auto"><Outlet /></main>
       </div>
+      <PwaInstallBanner />
     </div>
   );
 }

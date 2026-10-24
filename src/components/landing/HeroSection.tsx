@@ -48,18 +48,20 @@ export function HeroSection({ onBooking }: HeroProps) {
             Manicure, pedicure, rzęsy, brwi i wiele więcej.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Button
-              size="lg"
-              onClick={onBooking}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 text-base px-8 py-6 font-semibold"
-            >
-              Umów wizytę
-            </Button>
+            {onBooking && (
+              <Button
+                size="lg"
+                onClick={onBooking}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 text-base px-8 py-6 font-semibold"
+              >
+                Umów wizytę
+              </Button>
+            )}
             <Button
               size="lg"
               variant="outline"
               onClick={() => document.querySelector('#o-nas')?.scrollIntoView({ behavior: 'smooth' })}
-              className="border-cream/30 text-cream hover:bg-cream/10 text-base px-8 py-6"
+              className="border-cream/50 text-cream bg-transparent hover:bg-cream/10 hover:text-cream text-base px-8 py-6"
             >
               Poznaj nas
             </Button>

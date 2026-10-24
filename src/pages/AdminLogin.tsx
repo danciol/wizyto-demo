@@ -10,7 +10,7 @@ import { Loader2, Zap } from 'lucide-react';
 import { IS_DEMO, DEMO_CREDENTIALS } from '@/config/demo';
 
 const AdminLogin = () => {
-  const [login, setLogin] = useState(IS_DEMO ? DEMO_CREDENTIALS.email : '');
+  const [loginVal, setLoginVal] = useState(IS_DEMO ? DEMO_CREDENTIALS.email : '');
   const [password, setPassword] = useState(IS_DEMO ? DEMO_CREDENTIALS.password : '');
   const [remember, setRemember] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,9 +21,9 @@ const AdminLogin = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!login || !password) { toast.error('Wprowadź login i hasło'); return; }
+    if (!loginVal || !password) { toast.error('Wprowadź login i hasło'); return; }
     setIsLoading(true);
-    const success = await doLogin(login, password, remember);
+    const success = await doLogin(loginVal, password, remember);
     setIsLoading(false);
     if (success) { toast.success('Zalogowano pomyślnie'); navigate('/admin'); }
     else toast.error('Nieprawidłowy login lub hasło');
@@ -34,7 +34,7 @@ const AdminLogin = () => {
       <div className="glass-card p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="font-heading text-3xl font-bold text-primary mb-2">
-            {IS_DEMO ? 'Wizyto Demo' : 'Bella Beauty Studio'}
+            {IS_DEMO ? 'Velianow Demo' : 'Bella Beauty Studio'}
           </h1>
           <p className="text-muted-foreground text-sm">Panel pracownika</p>
         </div>
@@ -51,10 +51,29 @@ const AdminLogin = () => {
           </div>
         )}
         <form onSubmit={handleLogin} className="space-y-4">
-          <div><Label htmlFor="login">Login</Label>
-            <Input id="login" type="text" placeholder="Twój login" value={login} onChange={e => setLogin(e.target.value)} /></div>
-          <div><Label htmlFor="password">Hasło</Label>
-            <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} /></div>
+          <div>
+            <Label htmlFor="login">Login</Label>
+            <Input
+              id="login"
+              type="text"
+              placeholder="Twój login"
+              value={loginVal}
+              onChange={e => setLoginVal(e.target.value)}
+              autoComplete="username"
+              autoCapitalize="none"
+            />
+          </div>
+          <div>
+            <Label htmlFor="password">Hasło</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
           <div className="flex items-center gap-2.5">
             <Checkbox
               id="remember"
@@ -71,7 +90,7 @@ const AdminLogin = () => {
         </form>
         {IS_DEMO ? (
           <p className="text-xs text-center mt-6">
-            <a href="https://wizyto.pl#kontakt" className="text-primary font-semibold hover:underline">Kup Wizyto dla swojego salonu →</a>
+            <a href="https://www.velianow.pl" className="text-primary font-semibold hover:underline">Kup Velianow dla swojego salonu →</a>
           </p>
         ) : (
           <p className="text-xs text-muted-foreground text-center mt-6">Login i hasło ustala administrator w zakładce Pracownicy</p>

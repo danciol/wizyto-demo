@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { CheckCircle2, Calendar, Clock, User, Mail, Phone, Loader2, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BookingData } from './BookingWizard';
-import { useAppointments, useClients } from '@/hooks/useFirestore';
+import { useAppointments } from '@/hooks/useFirestore';
 import { toast } from 'sonner';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getPlanById } from '@/config/plans';
 import { sendSms } from '@/lib/textbee';
@@ -12,11 +12,11 @@ import { sendSms } from '@/lib/textbee';
 interface Props {
   booking: BookingData;
   onClose: () => void;
+  closeLabel?: string;
 }
 
-export function StepConfirmation({ booking, onClose }: Props) {
+export function StepConfirmation({ booking, onClose, closeLabel }: Props) {
   const { addAppointment } = useAppointments();
-  const { addClient } = useClients();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -31,32 +31,38 @@ export function StepConfirmation({ booking, onClose }: Props) {
       const dateObj = new Date(booking.date);
       dateObj.setHours(hours, minutes, 0, 0);
 
+      // Resolve or create client first to get clientId
+      const clientsSnap = await getDocs(
+        query(collection(db, 'clients'), where('phone', '==', booking.clientPhone))
+      );
+      let clientId: string;
+      if (!clientsSnap.empty) {
+        clientId = clientsSnap.docs[0].id;
+      } else {
+        const newClientRef = await addDoc(collection(db, 'clients'), {
+          name: booking.clientName,
+          phone: booking.clientPhone,
+          email: booking.clientEmail,
+          appointmentIds: [],
+        });
+        clientId = newClientRef.id;
+      }
+
       await addAppointment({
         serviceId: booking.service.id,
         employeeId: booking.employee.id,
         clientName: booking.clientName,
         clientPhone: booking.clientPhone,
         clientEmail: booking.clientEmail,
+        clientId,
         date: dateObj.toISOString(),
         duration: booking.service.duration,
         status: 'pending',
         createdAt: new Date().toISOString(),
+        depositStatus: depositAmount > 0 ? (depositPaid ? 'paid' : 'pending') : 'none',
         ...(depositAmount > 0 && { depositAmount }),
-        ...(depositPaid && { depositStatus: 'paid' }),
         ...(booking.depositOrderId && { depositOrderId: booking.depositOrderId }),
       });
-
-      const clientsSnap = await getDocs(
-        query(collection(db, 'clients'), where('phone', '==', booking.clientPhone))
-      );
-      if (clientsSnap.empty) {
-        await addClient({
-          name: booking.clientName,
-          phone: booking.clientPhone,
-          email: booking.clientEmail,
-          appointmentIds: [],
-        });
-      }
 
       setSaved(true);
       toast.success('Wizyta zgłoszona — czeka na potwierdzenie salonu!');
@@ -73,7 +79,7 @@ export function StepConfirmation({ booking, onClose }: Props) {
             `Nowa wizyta: ${booking.clientName}, ${booking.service?.name}, ${dateStr} o ${booking.time}`
           );
         }
-      } catch { /* silent */ }
+      } catch { /* silent — SMS failure doesn't affect booking */ }
     } catch {
       toast.error('Błąd rezerwacji. Spróbuj ponownie.');
     }
@@ -149,7 +155,7 @@ export function StepConfirmation({ booking, onClose }: Props) {
             ⏳ <strong>Co dalej?</strong> Salon skontaktuje się z Tobą, aby potwierdzić wizytę. Prosimy o cierpliwość.
           </div>
           <Button onClick={onClose} className="w-full bg-primary text-primary-foreground font-semibold">
-            Zamknij
+            {closeLabel ?? 'Zamknij'}
           </Button>
         </div>
       ) : (
