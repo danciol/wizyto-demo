@@ -42,13 +42,9 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '').slice(-9);
 }
 
-function buildLayout(appts: Appointment[]) {
-  if (!appts.length) return new Map<string, { col: number; totalCols: number }>();
-
+// Group appointments into clusters of overlapping intervals
+function buildClusters(appts: Appointment[]) {
   const sorted = [...appts].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const layout = new Map<string, { col: number; totalCols: number }>();
-
-  // Group appointments into clusters of overlapping intervals
   const groups: Appointment[][] = [];
   let group: Appointment[] = [];
   let groupEnd = 0;
@@ -66,6 +62,11 @@ function buildLayout(appts: Appointment[]) {
     }
   }
   if (group.length) groups.push(group);
+  return groups;
+}
+
+function buildLayout(groups: Appointment[][]) {
+  const layout = new Map<string, { col: number; totalCols: number }>();
 
   // Within each cluster: greedy column assignment, then set totalCols = columns used
   for (const g of groups) {
@@ -196,26 +197,90 @@ const AdminCalendar = () => {
     ? `${format(weekDays[0], 'd MMM', { locale: pl })} – ${format(weekDays[6], 'd MMM yyyy', { locale: pl })}`
     : format(currentDate, 'EEEE, d MMMM yyyy', { locale: pl });
 
-  const ApptCard = ({ a, topPx, heightPx, widthPct, leftPct }: {
-    a: Appointment; topPx: number; heightPx: number; widthPct: number; leftPct: number;
+  const ApptCard = ({ a, topPx, heightPx, widthPct, leftPct, compact = false }: {
+    a: Appointment; topPx: number; heightPx: number; widthPct: number; leftPct: number; compact?: boolean;
   }) => {
     const aDate = new Date(a.date);
     const service = services.find(s => s.id === a.serviceId);
     const employee = employees.find(e => e.id === a.employeeId);
     const empColor = getEmployeeColor(a.employeeId, employees);
     const h = Math.max(heightPx, 24);
+    const title = `${format(aDate, 'HH:mm')} ${a.clientName}${service ? ` – ${service.name}` : ''}${employee ? `\n${employee.name}` : ''}${a.notes ? `\n${a.notes}` : ''}`;
+
+    // Narrow tile (2 overlapping appointments in week view): name may wrap, only time below
+    if (compact) {
+      return (
+        <div
+          onClick={(e) => openEdit(e, a)}
+          className={`absolute z-10 rounded-md px-1.5 py-1 text-[11px] cursor-pointer border-l-[3px] transition-all hover:shadow-md hover:z-20 overflow-hidden ${empColor.bg} ${empColor.border} ${empColor.text}`}
+          style={{ top: `${topPx}px`, height: `${h}px`, left: `calc(${leftPct}% + 1px)`, width: `calc(${widthPct}% - 3px)` }}
+          title={title}
+        >
+          <p className="font-bold leading-tight break-words line-clamp-2">{a.clientName}</p>
+          {h > 40 && <p className="opacity-75 leading-tight">{format(aDate, 'HH:mm')}</p>}
+        </div>
+      );
+    }
+
     return (
       <div
         onClick={(e) => openEdit(e, a)}
         className={`absolute z-10 rounded-md px-2 py-1 text-xs cursor-pointer border-l-[3px] transition-all hover:shadow-md hover:z-20 overflow-hidden ${empColor.bg} ${empColor.border} ${empColor.text}`}
         style={{ top: `${topPx}px`, height: `${h}px`, left: `calc(${leftPct}% + 1px)`, width: `calc(${widthPct}% - 3px)` }}
-        title={`${a.clientName}${service ? ` – ${service.name}` : ''}${a.notes ? `\n${a.notes}` : ''}`}
+        title={title}
       >
         <p className="font-bold truncate leading-tight">{a.clientName}</p>
         {h > 28 && <p className="truncate opacity-75 leading-tight">{format(aDate, 'HH:mm')} · {service?.name || 'Wizyta'}</p>}
         {h > 48 && a.clientPhone && !(can('phone_protection') && !isAdmin && !isSalon) && <p className="truncate opacity-65 leading-tight">📞 {formatPhoneNumber(a.clientPhone)}</p>}
         {h > 64 && a.notes && <p className="truncate opacity-60 leading-tight italic">📝 {a.notes}</p>}
         {h > 80 && employee && viewMode === 'week' && <p className="truncate opacity-50 leading-tight">{employee.name}</p>}
+      </div>
+    );
+  };
+
+  // 3+ overlapping appointments in week view: one full-width tile listing them as rows
+  const CLUSTER_ROW_HEIGHT = 18;
+  const ClusterCard = ({ appts, day, topPx, heightPx }: {
+    appts: Appointment[]; day: Date; topPx: number; heightPx: number;
+  }) => {
+    const h = Math.max(heightPx, CLUSTER_ROW_HEIGHT * 3 + 8);
+    const maxRows = Math.max(1, Math.floor((h - 8) / CLUSTER_ROW_HEIGHT));
+    const overflow = appts.length > maxRows;
+    const shown = overflow ? appts.slice(0, maxRows - 1) : appts;
+    return (
+      <div
+        className="absolute z-10 rounded-md px-1 py-1 bg-card border border-border shadow-sm overflow-hidden hover:z-20 hover:shadow-md"
+        style={{ top: `${topPx}px`, height: `${h}px`, left: '1px', right: '2px' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {shown.map(a => {
+          const empColor = getEmployeeColor(a.employeeId, employees);
+          const service = services.find(s => s.id === a.serviceId);
+          const employee = employees.find(e => e.id === a.employeeId);
+          return (
+            <button
+              key={a.id}
+              type="button"
+              onClick={(e) => openEdit(e, a)}
+              className={`w-full flex items-center gap-1 rounded px-1 text-left text-[11px] leading-none hover:brightness-95 border-l-[3px] mb-px ${empColor.bg} ${empColor.border} ${empColor.text}`}
+              style={{ height: CLUSTER_ROW_HEIGHT - 1 }}
+              title={`${format(new Date(a.date), 'HH:mm')} ${a.clientName}${service ? ` – ${service.name}` : ''}${employee ? `\n${employee.name}` : ''}`}
+            >
+              <span className="font-semibold tabular-nums shrink-0">{format(new Date(a.date), 'HH:mm')}</span>
+              <span className="truncate">{a.clientName}</span>
+            </button>
+          );
+        })}
+        {overflow && (
+          <button
+            type="button"
+            onClick={() => { setCurrentDate(day); setViewMode('day'); }}
+            className="w-full text-left px-1 text-[11px] font-semibold text-primary hover:underline"
+            style={{ height: CLUSTER_ROW_HEIGHT }}
+          >
+            +{appts.length - shown.length} więcej
+          </button>
+        )}
       </div>
     );
   };
@@ -253,7 +318,9 @@ const AdminCalendar = () => {
   const TimeColumn = ({ day, empId }: { day: Date; empId?: string }) => {
     const dayStr = format(day, 'yyyy-MM-dd');
     const appts = getDayAppointments(day, empId);
-    const layout = buildLayout(appts);
+    const clusters = buildClusters(appts);
+    const layout = buildLayout(clusters);
+    const isWeekColumn = viewMode === 'week' && !empId;
 
     // Show day-off overlay when a specific employee is known for this column
     const effectiveEmpId = empId || (filterEmployeeId !== 'all' ? filterEmployeeId : null);
@@ -298,16 +365,28 @@ const AdminCalendar = () => {
           if (topPx < 0) return null;
           return <TimeBlockCard key={block.id} block={block} topPx={topPx} heightPx={heightPx} />;
         })}
-        {appts.map(a => {
-          const aDate = new Date(a.date);
-          const startHour = aDate.getHours() + aDate.getMinutes() / 60;
-          const topPx = (startHour - START_HOUR) * HOUR_HEIGHT;
-          const heightPx = (a.duration / 60) * HOUR_HEIGHT;
-          if (topPx < 0 || topPx >= hours.length * HOUR_HEIGHT) return null;
-          const l = layout.get(a.id) || { col: 0, totalCols: 1 };
-          const widthPct = 100 / l.totalCols;
-          const leftPct = l.col * widthPct;
-          return <ApptCard key={a.id} a={a} topPx={topPx} heightPx={heightPx} widthPct={widthPct} leftPct={leftPct} />;
+        {clusters.flatMap(cluster => {
+          const totalCols = layout.get(cluster[0].id)?.totalCols ?? 1;
+          if (isWeekColumn && totalCols > 2) {
+            const start = new Date(cluster[0].date);
+            const startHour = start.getHours() + start.getMinutes() / 60;
+            const end = Math.max(...cluster.map(a => new Date(a.date).getTime() + a.duration * 60000));
+            const topPx = (startHour - START_HOUR) * HOUR_HEIGHT;
+            const heightPx = ((end - start.getTime()) / 3600000) * HOUR_HEIGHT;
+            if (topPx < 0 || topPx >= hours.length * HOUR_HEIGHT) return [];
+            return [<ClusterCard key={cluster[0].id} appts={cluster} day={day} topPx={topPx} heightPx={heightPx} />];
+          }
+          return cluster.map(a => {
+            const aDate = new Date(a.date);
+            const startHour = aDate.getHours() + aDate.getMinutes() / 60;
+            const topPx = (startHour - START_HOUR) * HOUR_HEIGHT;
+            const heightPx = (a.duration / 60) * HOUR_HEIGHT;
+            if (topPx < 0 || topPx >= hours.length * HOUR_HEIGHT) return null;
+            const l = layout.get(a.id) || { col: 0, totalCols: 1 };
+            const widthPct = 100 / l.totalCols;
+            const leftPct = l.col * widthPct;
+            return <ApptCard key={a.id} a={a} topPx={topPx} heightPx={heightPx} widthPct={widthPct} leftPct={leftPct} compact={isWeekColumn && l.totalCols === 2} />;
+          });
         })}
       </div>
     );
