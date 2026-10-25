@@ -42,54 +42,52 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '').slice(-9);
 }
 
-// Group appointments into clusters of overlapping intervals
-function buildClusters(appts: Appointment[]) {
-  const sorted = [...appts].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const groups: Appointment[][] = [];
-  let group: Appointment[] = [];
-  let groupEnd = 0;
+// Google Calendar–style layout:
+// - appointments starting less than CASCADE_MIN after the first one of a group sit side by side
+//   (their headers would collide),
+// - an appointment starting later is indented and drawn on top of the ongoing ones,
+//   so their headers stay visible and the later tile keeps most of the column width.
+// With maxSide set, a side-by-side group shows at most maxSide slots; the last slot becomes "+N".
+const CASCADE_MIN = 30;
+const INDENT_PX = 14;
+const MAX_INDENT = 3;
 
+interface ApptGroup { start: number; indent: number; members: Appointment[] }
+interface ApptLayout { indent: number; col: number; cols: number; z: number; group: ApptGroup }
+
+function buildLayout(appts: Appointment[], maxSide = Infinity) {
+  const layout = new Map<string, ApptLayout>();
+  const time = (a: Appointment) => new Date(a.date).getTime();
+  const sorted = [...appts].sort((a, b) => time(a) - time(b) || b.duration - a.duration);
+
+  const placed: { a: Appointment; end: number; group: ApptGroup }[] = [];
   for (const a of sorted) {
-    const aStart = new Date(a.date).getTime();
-    const aEnd = aStart + a.duration * 60000;
-    if (group.length === 0 || aStart < groupEnd) {
-      group.push(a);
-      groupEnd = Math.max(groupEnd, aEnd);
+    const start = time(a);
+    const end = start + a.duration * 60000;
+    const active = placed.filter(p => p.end > start);
+    // Topmost ongoing group that started less than CASCADE_MIN ago
+    const host = active
+      .map(p => p.group)
+      .filter(g => start - g.start < CASCADE_MIN * 60000)
+      .sort((x, y) => y.indent - x.indent)[0];
+
+    let group: ApptGroup;
+    if (host) {
+      group = host;
+      group.members.push(a);
     } else {
-      groups.push(group);
-      group = [a];
-      groupEnd = aEnd;
+      const indent = active.length
+        ? Math.min(MAX_INDENT, Math.max(...active.map(p => p.group.indent)) + 1)
+        : 0;
+      group = { start, indent, members: [a] };
     }
+    placed.push({ a, end, group });
   }
-  if (group.length) groups.push(group);
-  return groups;
-}
 
-function buildLayout(groups: Appointment[][]) {
-  const layout = new Map<string, { col: number; totalCols: number }>();
-
-  // Within each cluster: greedy column assignment, then set totalCols = columns used
-  for (const g of groups) {
-    const colEnds: number[] = [];
-    for (const a of g) {
-      const aStart = new Date(a.date).getTime();
-      const aEnd = aStart + a.duration * 60000;
-      let placed = false;
-      for (let c = 0; c < colEnds.length; c++) {
-        if (aStart >= colEnds[c]) {
-          colEnds[c] = aEnd;
-          layout.set(a.id, { col: c, totalCols: 0 });
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        colEnds.push(aEnd);
-        layout.set(a.id, { col: colEnds.length - 1, totalCols: 0 });
-      }
-    }
-    const totalCols = colEnds.length;
-    for (const a of g) layout.get(a.id)!.totalCols = totalCols;
+  for (const { group } of placed) {
+    const cols = Math.min(group.members.length, maxSide);
+    group.members.forEach((m, i) =>
+      layout.set(m.id, { indent: group.indent, col: Math.min(i, cols - 1), cols, z: 10 + group.indent, group }));
   }
 
   return layout;
@@ -197,91 +195,77 @@ const AdminCalendar = () => {
     ? `${format(weekDays[0], 'd MMM', { locale: pl })} – ${format(weekDays[6], 'd MMM yyyy', { locale: pl })}`
     : format(currentDate, 'EEEE, d MMMM yyyy', { locale: pl });
 
-  const ApptCard = ({ a, topPx, heightPx, widthPct, leftPct, compact = false }: {
-    a: Appointment; topPx: number; heightPx: number; widthPct: number; leftPct: number; compact?: boolean;
+  const ApptCard = ({ a, topPx, heightPx, l }: {
+    a: Appointment; topPx: number; heightPx: number; l: ApptLayout;
   }) => {
     const aDate = new Date(a.date);
     const service = services.find(s => s.id === a.serviceId);
     const employee = employees.find(e => e.id === a.employeeId);
     const empColor = getEmployeeColor(a.employeeId, employees);
     const h = Math.max(heightPx, 24);
-    const title = `${format(aDate, 'HH:mm')} ${a.clientName}${service ? ` – ${service.name}` : ''}${employee ? `\n${employee.name}` : ''}${a.notes ? `\n${a.notes}` : ''}`;
-
-    // Narrow tile (2 overlapping appointments in week view): name may wrap, only time below
-    if (compact) {
-      return (
-        <div
-          onClick={(e) => openEdit(e, a)}
-          className={`absolute z-10 rounded-md px-1.5 py-1 text-[11px] cursor-pointer border-l-[3px] transition-all hover:shadow-md hover:z-20 overflow-hidden ${empColor.bg} ${empColor.border} ${empColor.text}`}
-          style={{ top: `${topPx}px`, height: `${h}px`, left: `calc(${leftPct}% + 1px)`, width: `calc(${widthPct}% - 3px)` }}
-          title={title}
-        >
-          <p className="font-bold leading-tight break-words line-clamp-2">{a.clientName}</p>
-          {h > 40 && <p className="opacity-75 leading-tight">{format(aDate, 'HH:mm')}</p>}
-        </div>
-      );
-    }
-
+    const indentPx = l.indent * INDENT_PX;
+    const colWidth = `(100% - ${indentPx}px) / ${l.cols}`;
+    // Narrow side-by-side tiles in week view: name may wrap, time on its own line
+    const compact = viewMode === 'week' && l.cols > 1;
     return (
       <div
         onClick={(e) => openEdit(e, a)}
-        className={`absolute z-10 rounded-md px-2 py-1 text-xs cursor-pointer border-l-[3px] transition-all hover:shadow-md hover:z-20 overflow-hidden ${empColor.bg} ${empColor.border} ${empColor.text}`}
-        style={{ top: `${topPx}px`, height: `${h}px`, left: `calc(${leftPct}% + 1px)`, width: `calc(${widthPct}% - 3px)` }}
-        title={title}
+        className={`absolute rounded-md py-1 cursor-pointer border-l-[3px] transition-shadow hover:shadow-md hover:!z-30 overflow-hidden ${compact ? 'px-1.5 text-[11px]' : 'px-2 text-xs'} ${l.indent > 0 ? 'ring-1 ring-card shadow-sm' : ''} ${empColor.bg} ${empColor.border} ${empColor.text}`}
+        style={{
+          top: `${topPx}px`, height: `${h}px`, zIndex: l.z,
+          left: `calc(${indentPx}px + ${colWidth} * ${l.col} + 1px)`,
+          width: `calc(${colWidth} - 3px)`,
+        }}
+        title={`${format(aDate, 'HH:mm')} ${a.clientName}${service ? ` – ${service.name}` : ''}${employee ? `\n${employee.name}` : ''}${a.notes ? `\n${a.notes}` : ''}`}
       >
+        {compact ? (
+          <>
+            {a.clientName.split(' ').slice(0, 2).map((part, i) => (
+              <p key={i} className="font-bold leading-tight truncate">{part}</p>
+            ))}
+            {h > 40 && <p className="opacity-75 leading-tight">{format(aDate, 'HH:mm')}</p>}
+          </>
+        ) : (
+          <>
         <p className="font-bold truncate leading-tight">{a.clientName}</p>
         {h > 28 && <p className="truncate opacity-75 leading-tight">{format(aDate, 'HH:mm')} · {service?.name || 'Wizyta'}</p>}
         {h > 48 && a.clientPhone && !(can('phone_protection') && !isAdmin && !isSalon) && <p className="truncate opacity-65 leading-tight">📞 {formatPhoneNumber(a.clientPhone)}</p>}
         {h > 64 && a.notes && <p className="truncate opacity-60 leading-tight italic">📝 {a.notes}</p>}
         {h > 80 && employee && viewMode === 'week' && <p className="truncate opacity-50 leading-tight">{employee.name}</p>}
+          </>
+        )}
       </div>
     );
   };
 
-  // 3+ overlapping appointments in week view: one full-width tile listing them as rows
-  const CLUSTER_ROW_HEIGHT = 18;
-  const ClusterCard = ({ appts, day, topPx, heightPx }: {
-    appts: Appointment[]; day: Date; topPx: number; heightPx: number;
-  }) => {
-    const h = Math.max(heightPx, CLUSTER_ROW_HEIGHT * 3 + 8);
-    const maxRows = Math.max(1, Math.floor((h - 8) / CLUSTER_ROW_HEIGHT));
-    const overflow = appts.length > maxRows;
-    const shown = overflow ? appts.slice(0, maxRows - 1) : appts;
+  // Last side-by-side slot when a group has more appointments than fit: "+N", opens day view
+  const MoreCard = ({ hidden, day, l }: { hidden: Appointment[]; day: Date; l: ApptLayout }) => {
+    const start = Math.min(...hidden.map(a => new Date(a.date).getTime()));
+    const end = Math.max(...hidden.map(a => new Date(a.date).getTime() + a.duration * 60000));
+    const startDate = new Date(start);
+    const topPx = (startDate.getHours() + startDate.getMinutes() / 60 - START_HOUR) * HOUR_HEIGHT;
+    const h = Math.max(((end - start) / 3600000) * HOUR_HEIGHT, 24);
+    const indentPx = l.indent * INDENT_PX;
+    const colWidth = `(100% - ${indentPx}px) / ${l.cols}`;
     return (
-      <div
-        className="absolute z-10 rounded-md px-1 py-1 bg-card border border-border shadow-sm overflow-hidden hover:z-20 hover:shadow-md"
-        style={{ top: `${topPx}px`, height: `${h}px`, left: '1px', right: '2px' }}
-        onClick={e => e.stopPropagation()}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setCurrentDate(day); setViewMode('day'); }}
+        className="absolute rounded-md px-1.5 py-1 text-left bg-secondary border border-border hover:shadow-md hover:!z-30 overflow-hidden"
+        style={{
+          top: `${topPx}px`, height: `${h}px`, zIndex: l.z,
+          left: `calc(${indentPx}px + ${colWidth} * ${l.col} + 1px)`,
+          width: `calc(${colWidth} - 3px)`,
+        }}
+        title={hidden.map(a => `${format(new Date(a.date), 'HH:mm')} ${a.clientName}`).join('\n')}
       >
-        {shown.map(a => {
-          const empColor = getEmployeeColor(a.employeeId, employees);
-          const service = services.find(s => s.id === a.serviceId);
-          const employee = employees.find(e => e.id === a.employeeId);
-          return (
-            <button
-              key={a.id}
-              type="button"
-              onClick={(e) => openEdit(e, a)}
-              className={`w-full flex items-center gap-1 rounded px-1 text-left text-[11px] leading-none hover:brightness-95 border-l-[3px] mb-px ${empColor.bg} ${empColor.border} ${empColor.text}`}
-              style={{ height: CLUSTER_ROW_HEIGHT - 1 }}
-              title={`${format(new Date(a.date), 'HH:mm')} ${a.clientName}${service ? ` – ${service.name}` : ''}${employee ? `\n${employee.name}` : ''}`}
-            >
-              <span className="font-semibold tabular-nums shrink-0">{format(new Date(a.date), 'HH:mm')}</span>
-              <span className="truncate">{a.clientName}</span>
-            </button>
-          );
-        })}
-        {overflow && (
-          <button
-            type="button"
-            onClick={() => { setCurrentDate(day); setViewMode('day'); }}
-            className="w-full text-left px-1 text-[11px] font-semibold text-primary hover:underline"
-            style={{ height: CLUSTER_ROW_HEIGHT }}
-          >
-            +{appts.length - shown.length} więcej
-          </button>
-        )}
-      </div>
+        <p className="text-xs font-bold text-foreground leading-tight">+{hidden.length}</p>
+        <div className="flex flex-wrap gap-0.5 mt-1">
+          {hidden.map(a => (
+            <span key={a.id} className={`w-2 h-2 rounded-full border-2 ${getEmployeeColor(a.employeeId, employees).border}`} />
+          ))}
+        </div>
+      </button>
     );
   };
 
@@ -318,9 +302,8 @@ const AdminCalendar = () => {
   const TimeColumn = ({ day, empId }: { day: Date; empId?: string }) => {
     const dayStr = format(day, 'yyyy-MM-dd');
     const appts = getDayAppointments(day, empId);
-    const clusters = buildClusters(appts);
-    const layout = buildLayout(clusters);
-    const isWeekColumn = viewMode === 'week' && !empId;
+    // Week columns hold all employees, so cap side-by-side tiles at 2 there
+    const layout = buildLayout(appts, viewMode === 'week' && !empId ? 2 : Infinity);
 
     // Show day-off overlay when a specific employee is known for this column
     const effectiveEmpId = empId || (filterEmployeeId !== 'all' ? filterEmployeeId : null);
@@ -365,28 +348,20 @@ const AdminCalendar = () => {
           if (topPx < 0) return null;
           return <TimeBlockCard key={block.id} block={block} topPx={topPx} heightPx={heightPx} />;
         })}
-        {clusters.flatMap(cluster => {
-          const totalCols = layout.get(cluster[0].id)?.totalCols ?? 1;
-          if (isWeekColumn && totalCols > 2) {
-            const start = new Date(cluster[0].date);
-            const startHour = start.getHours() + start.getMinutes() / 60;
-            const end = Math.max(...cluster.map(a => new Date(a.date).getTime() + a.duration * 60000));
-            const topPx = (startHour - START_HOUR) * HOUR_HEIGHT;
-            const heightPx = ((end - start.getTime()) / 3600000) * HOUR_HEIGHT;
-            if (topPx < 0 || topPx >= hours.length * HOUR_HEIGHT) return [];
-            return [<ClusterCard key={cluster[0].id} appts={cluster} day={day} topPx={topPx} heightPx={heightPx} />];
+        {appts.map(a => {
+          const aDate = new Date(a.date);
+          const startHour = aDate.getHours() + aDate.getMinutes() / 60;
+          const topPx = (startHour - START_HOUR) * HOUR_HEIGHT;
+          const heightPx = (a.duration / 60) * HOUR_HEIGHT;
+          if (topPx < 0 || topPx >= hours.length * HOUR_HEIGHT) return null;
+          const l = layout.get(a.id)!;
+          const { members } = l.group;
+          if (members.length > l.cols) {
+            const idx = members.indexOf(a);
+            if (idx === l.cols - 1) return <MoreCard key={a.id} hidden={members.slice(idx)} day={day} l={l} />;
+            if (idx > l.cols - 1) return null;
           }
-          return cluster.map(a => {
-            const aDate = new Date(a.date);
-            const startHour = aDate.getHours() + aDate.getMinutes() / 60;
-            const topPx = (startHour - START_HOUR) * HOUR_HEIGHT;
-            const heightPx = (a.duration / 60) * HOUR_HEIGHT;
-            if (topPx < 0 || topPx >= hours.length * HOUR_HEIGHT) return null;
-            const l = layout.get(a.id) || { col: 0, totalCols: 1 };
-            const widthPct = 100 / l.totalCols;
-            const leftPct = l.col * widthPct;
-            return <ApptCard key={a.id} a={a} topPx={topPx} heightPx={heightPx} widthPct={widthPct} leftPct={leftPct} compact={isWeekColumn && l.totalCols === 2} />;
-          });
+          return <ApptCard key={a.id} a={a} topPx={topPx} heightPx={heightPx} l={l} />;
         })}
       </div>
     );
