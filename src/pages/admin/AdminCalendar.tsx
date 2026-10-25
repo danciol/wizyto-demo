@@ -42,33 +42,36 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '').slice(-9);
 }
 
-// Google Calendar–style layout:
-// - appointments starting less than CASCADE_MIN after the first one of a group sit side by side
-//   (their headers would collide),
-// - an appointment starting later is indented and drawn on top of the ongoing ones,
-//   so their headers stay visible and the later tile keeps most of the column width.
+// Google Calendar–style cascade:
+// - overlapping appointments are indented and drawn on top of each other (longest at the bottom),
+//   every tile keeps its real duration,
+// - a covered tile moves its label down into its visible part (below the tiles on top of it),
+// - only when a tile would hide another one's label completely (both start AND end within
+//   LABEL_MIN of each other) do they sit side by side.
 // With maxSide set, a side-by-side group shows at most maxSide slots; the last slot becomes "+N".
-const CASCADE_MIN = 30;
+// Minutes of visible tile needed for one label line (name)
+const LABEL_MIN = 15;
 const INDENT_PX = 14;
-const MAX_INDENT = 3;
+const MAX_INDENT = 5;
 
-interface ApptGroup { start: number; indent: number; members: Appointment[] }
-interface ApptLayout { indent: number; col: number; cols: number; z: number; group: ApptGroup }
+interface ApptGroup { indent: number; members: Appointment[] }
+interface ApptLayout { indent: number; col: number; cols: number; z: number; group: ApptGroup; labelOffsetMin: number }
 
 function buildLayout(appts: Appointment[], maxSide = Infinity) {
   const layout = new Map<string, ApptLayout>();
   const time = (a: Appointment) => new Date(a.date).getTime();
   const sorted = [...appts].sort((a, b) => time(a) - time(b) || b.duration - a.duration);
+  const labelMs = LABEL_MIN * 60000;
 
-  const placed: { a: Appointment; end: number; group: ApptGroup }[] = [];
+  const placed: { a: Appointment; start: number; end: number; group: ApptGroup }[] = [];
   for (const a of sorted) {
     const start = time(a);
     const end = start + a.duration * 60000;
     const active = placed.filter(p => p.end > start);
-    // Topmost ongoing group that started less than CASCADE_MIN ago
+    // Tiles whose label this one would hide with no room left below it
     const host = active
+      .filter(p => start - p.start < labelMs && p.end - end < labelMs)
       .map(p => p.group)
-      .filter(g => start - g.start < CASCADE_MIN * 60000)
       .sort((x, y) => y.indent - x.indent)[0];
 
     let group: ApptGroup;
@@ -79,15 +82,29 @@ function buildLayout(appts: Appointment[], maxSide = Infinity) {
       const indent = active.length
         ? Math.min(MAX_INDENT, Math.max(...active.map(p => p.group.indent)) + 1)
         : 0;
-      group = { start, indent, members: [a] };
+      group = { indent, members: [a] };
     }
-    placed.push({ a, end, group });
+    placed.push({ a, start, end, group });
   }
 
-  for (const { group } of placed) {
-    const cols = Math.min(group.members.length, maxSide);
-    group.members.forEach((m, i) =>
-      layout.set(m.id, { indent: group.indent, col: Math.min(i, cols - 1), cols, z: 10 + group.indent, group }));
+  for (const p of placed) {
+    // Push the label below every tile drawn on top of it
+    let labelTop = p.start;
+    for (let moved = true; moved;) {
+      moved = false;
+      for (const u of placed) {
+        if (u.group.indent > p.group.indent && u.start <= labelTop && u.end > labelTop) {
+          labelTop = u.end;
+          moved = true;
+        }
+      }
+    }
+    const labelOffsetMin = labelTop < p.end ? (labelTop - p.start) / 60000 : 0;
+    const cols = Math.min(p.group.members.length, maxSide);
+    const i = p.group.members.indexOf(p.a);
+    layout.set(p.a.id, {
+      indent: p.group.indent, col: Math.min(i, cols - 1), cols, z: 10 + p.group.indent, group: p.group, labelOffsetMin,
+    });
   }
 
   return layout;
@@ -207,10 +224,13 @@ const AdminCalendar = () => {
     const colWidth = `(100% - ${indentPx}px) / ${l.cols}`;
     // Narrow side-by-side tiles in week view: name may wrap, time on its own line
     const compact = viewMode === 'week' && l.cols > 1;
+    // Label sits in the part of the tile not covered by tiles drawn on top of it
+    const labelOffsetPx = (l.labelOffsetMin / 60) * HOUR_HEIGHT;
+    const vh = h - labelOffsetPx;
     return (
       <div
         onClick={(e) => openEdit(e, a)}
-        className={`absolute rounded-md py-1 cursor-pointer border-l-[3px] transition-shadow hover:shadow-md hover:!z-30 overflow-hidden ${compact ? 'px-1.5 text-[11px]' : 'px-2 text-xs'} ${l.indent > 0 ? 'ring-1 ring-card shadow-sm' : ''} ${empColor.bg} ${empColor.border} ${empColor.text}`}
+        className={`absolute rounded-md pt-0.5 pb-1 cursor-pointer border-l-[3px] transition-shadow hover:shadow-md hover:!z-30 overflow-hidden ${compact ? 'px-1.5 text-[11px]' : 'px-2 text-xs'} ${l.indent > 0 ? 'ring-1 ring-card shadow-sm' : ''} ${empColor.bg} ${empColor.border} ${empColor.text}`}
         style={{
           top: `${topPx}px`, height: `${h}px`, zIndex: l.z,
           left: `calc(${indentPx}px + ${colWidth} * ${l.col} + 1px)`,
@@ -218,22 +238,24 @@ const AdminCalendar = () => {
         }}
         title={`${format(aDate, 'HH:mm')} ${a.clientName}${service ? ` – ${service.name}` : ''}${employee ? `\n${employee.name}` : ''}${a.notes ? `\n${a.notes}` : ''}`}
       >
+        <div style={{ marginTop: labelOffsetPx }}>
         {compact ? (
           <>
             {a.clientName.split(' ').slice(0, 2).map((part, i) => (
-              <p key={i} className="font-bold leading-tight truncate">{part}</p>
+              <p key={i} className="font-bold leading-[14px] truncate">{part}</p>
             ))}
-            {h > 40 && <p className="opacity-75 leading-tight">{format(aDate, 'HH:mm')}</p>}
+            {vh > 40 && <p className="opacity-75 leading-tight">{format(aDate, 'HH:mm')}</p>}
           </>
         ) : (
           <>
-        <p className="font-bold truncate leading-tight">{a.clientName}</p>
-        {h > 28 && <p className="truncate opacity-75 leading-tight">{format(aDate, 'HH:mm')} · {service?.name || 'Wizyta'}</p>}
-        {h > 48 && a.clientPhone && !(can('phone_protection') && !isAdmin && !isSalon) && <p className="truncate opacity-65 leading-tight">📞 {formatPhoneNumber(a.clientPhone)}</p>}
-        {h > 64 && a.notes && <p className="truncate opacity-60 leading-tight italic">📝 {a.notes}</p>}
-        {h > 80 && employee && viewMode === 'week' && <p className="truncate opacity-50 leading-tight">{employee.name}</p>}
+        <p className="font-bold truncate leading-[14px]">{a.clientName}</p>
+        {vh > 28 && <p className="truncate opacity-75 leading-tight">{format(aDate, 'HH:mm')} · {service?.name || 'Wizyta'}</p>}
+        {vh > 48 && a.clientPhone && !(can('phone_protection') && !isAdmin && !isSalon) && <p className="truncate opacity-65 leading-tight">📞 {formatPhoneNumber(a.clientPhone)}</p>}
+        {vh > 64 && a.notes && <p className="truncate opacity-60 leading-tight italic">📝 {a.notes}</p>}
+        {vh > 80 && employee && viewMode === 'week' && <p className="truncate opacity-50 leading-tight">{employee.name}</p>}
           </>
         )}
+        </div>
       </div>
     );
   };
