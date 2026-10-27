@@ -70,7 +70,7 @@ export function StepConfirmation({ booking, onClose, closeLabel }: Props) {
       // Employee SMS notification (Pro feature)
       try {
         const settingsSnap = await getDoc(doc(db, 'settings', 'global'));
-        const planId = settingsSnap.data()?.plan || 'test';
+        const planId = settingsSnap.data()?.plan || 'trial';
         const plan = getPlanById(planId);
         if (plan?.features.includes('employee_sms_notify') && booking.employee?.phone) {
           const dateStr = booking.date?.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' }) || '';

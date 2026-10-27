@@ -21,13 +21,13 @@ interface SubscriptionState {
 export function useSubscription(): SubscriptionState {
   const [state, setState] = useState<SubscriptionState>({
     status: 'loading',
-    planId: 'standard',
+    planId: 'duet',
   });
 
   useEffect(() => {
     const salonId = (salonConfig as any).salonId;
     if (!salonId) {
-      setState({ status: 'active', planId: 'pro' });
+      setState({ status: 'active', planId: 'salon_pro' });
       return;
     }
 
@@ -39,12 +39,12 @@ export function useSubscription(): SubscriptionState {
       doc(masterDb, 'superadmin_salons', salonId),
       (snap) => {
         if (!snap.exists()) {
-          setState({ status: 'active', planId: 'pro' });
+          setState({ status: 'active', planId: 'salon_pro' });
           return;
         }
         const data = snap.data();
         const today = new Date().toISOString().split('T')[0];
-        const planId = data.plan || 'standard';
+        const planId = data.plan || 'duet';
 
         if (!data.active) {
           setState({ status: 'inactive', planId });
@@ -54,7 +54,7 @@ export function useSubscription(): SubscriptionState {
           setState({ status: 'active', planId });
         }
       },
-      () => setState({ status: 'active', planId: 'pro' })
+      () => setState({ status: 'active', planId: 'salon_pro' })
     );
 
     return unsub;
