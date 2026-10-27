@@ -1,13 +1,9 @@
 import { useState } from 'react';
-import { CheckCircle2, Calendar, Clock, User, Mail, Phone, Loader2, CreditCard } from 'lucide-react';
+import { CheckCircle2, Calendar, Clock, User, Mail, Phone, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BookingData } from './BookingWizard';
-import { useAppointments } from '@/hooks/useFirestore';
 import { toast } from 'sonner';
-import { collection, query, where, getDocs, doc, getDoc, addDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { getPlanById } from '@/config/plans';
-import { sendSms } from '@/lib/textbee';
+import { createBookingAppointment } from '@/lib/booking';
 
 interface Props {
   booking: BookingData;
@@ -15,71 +11,17 @@ interface Props {
   closeLabel?: string;
 }
 
+// Rezerwacja bez zaliczki. Z zaliczką rezerwację zapisuje StepPayment przed przejściem do bramki.
 export function StepConfirmation({ booking, onClose, closeLabel }: Props) {
-  const { addAppointment } = useAppointments();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const depositAmount = booking.service?.depositAmount ?? 0;
-  const depositPaid = !!booking.depositOrderId;
-
   const handleConfirm = async () => {
-    if (!booking.service || !booking.employee || !booking.date || !booking.time) return;
     setSaving(true);
     try {
-      const [hours, minutes] = booking.time.split(':').map(Number);
-      const dateObj = new Date(booking.date);
-      dateObj.setHours(hours, minutes, 0, 0);
-
-      // Resolve or create client first to get clientId
-      const clientsSnap = await getDocs(
-        query(collection(db, 'clients'), where('phone', '==', booking.clientPhone))
-      );
-      let clientId: string;
-      if (!clientsSnap.empty) {
-        clientId = clientsSnap.docs[0].id;
-      } else {
-        const newClientRef = await addDoc(collection(db, 'clients'), {
-          name: booking.clientName,
-          phone: booking.clientPhone,
-          email: booking.clientEmail,
-          appointmentIds: [],
-        });
-        clientId = newClientRef.id;
-      }
-
-      await addAppointment({
-        serviceId: booking.service.id,
-        employeeId: booking.employee.id,
-        clientName: booking.clientName,
-        clientPhone: booking.clientPhone,
-        clientEmail: booking.clientEmail,
-        clientId,
-        date: dateObj.toISOString(),
-        duration: booking.service.duration,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        depositStatus: depositAmount > 0 ? (depositPaid ? 'paid' : 'pending') : 'none',
-        ...(depositAmount > 0 && { depositAmount }),
-        ...(booking.depositOrderId && { depositOrderId: booking.depositOrderId }),
-      });
-
+      await createBookingAppointment(booking, { awaitingDeposit: false });
       setSaved(true);
       toast.success('Wizyta zgłoszona — czeka na potwierdzenie salonu!');
-
-      // Employee SMS notification (Pro feature)
-      try {
-        const settingsSnap = await getDoc(doc(db, 'settings', 'global'));
-        const planId = settingsSnap.data()?.plan || 'trial';
-        const plan = getPlanById(planId);
-        if (plan?.features.includes('employee_sms_notify') && booking.employee?.phone) {
-          const dateStr = booking.date?.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' }) || '';
-          await sendSms(
-            [booking.employee.phone],
-            `Nowa wizyta: ${booking.clientName}, ${booking.service?.name}, ${dateStr} o ${booking.time}`
-          );
-        }
-      } catch { /* silent — SMS failure doesn't affect booking */ }
     } catch {
       toast.error('Błąd rezerwacji. Spróbuj ponownie.');
     }
@@ -127,15 +69,6 @@ export function StepConfirmation({ booking, onClose, closeLabel }: Props) {
             <p className="text-sm font-medium text-foreground">{booking.employee?.name}</p>
           </div>
         </div>
-        {depositPaid && (
-          <div className="flex items-start gap-3">
-            <CreditCard className="w-4 h-4 text-green-600 mt-0.5" />
-            <div>
-              <p className="text-xs text-muted-foreground">Zaliczka</p>
-              <p className="text-sm font-medium text-green-600">Zapłacono {depositAmount} zł ✓</p>
-            </div>
-          </div>
-        )}
         <div className="border-t border-border pt-3 space-y-1.5">
           <div className="flex items-center gap-2 text-sm text-foreground">
             <User className="w-3.5 h-3.5 text-muted-foreground" /> {booking.clientName}

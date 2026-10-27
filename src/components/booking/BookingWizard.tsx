@@ -9,6 +9,8 @@ import { StepConfirmation } from './StepConfirmation';
 import { StepWaitingList } from './StepWaitingList';
 import { Service, Employee } from '@/data/services';
 import { useServices, useEmployees, useAppointments, useSettings } from '@/hooks/useFirestore';
+import { usePayments } from '@/hooks/usePayments';
+import { resolveDepositAmount } from '@/lib/deposit';
 import { X, Loader2 } from 'lucide-react';
 
 export interface BookingData {
@@ -19,7 +21,6 @@ export interface BookingData {
   clientName: string;
   clientPhone: string;
   clientEmail: string;
-  depositOrderId?: string;
 }
 
 interface BookingWizardProps {
@@ -34,9 +35,10 @@ export function BookingWizard({ onClose, standalone, initialServiceId }: Booking
   const { services, loading: loadingS } = useServices();
   const { employees, loading: loadingE } = useEmployees();
   const { appointments, loading: loadingA } = useAppointments();
-  const { depositAmount, loading: loadingSettings } = useSettings();
+  const { depositAmount: globalDeposit, loading: loadingSettings } = useSettings();
+  const payments = usePayments();
 
-  const loading = loadingS || loadingE || loadingA || loadingSettings;
+  const loading = loadingS || loadingE || loadingA || loadingSettings || payments.loading;
 
   const initialService = initialServiceId ? services.find(s => s.id === initialServiceId) ?? null : null;
   const [step, setStep] = useState(initialService ? 1 : 0);
@@ -65,7 +67,9 @@ export function BookingWizard({ onClose, standalone, initialServiceId }: Booking
     ? employees.filter(e => (booking.service!.employees || booking.service!.employeeIds || []).includes(e.id))
     : [];
 
-  const requiresDeposit = depositAmount > 0;
+  // Bez podłączonego Tpay rezerwacja przechodzi bez zaliczki
+  const depositAmount = resolveDepositAmount(booking.service?.depositAmount, globalDeposit);
+  const requiresDeposit = payments.enabled && depositAmount > 0;
 
   const slideVariants = {
     enter: { opacity: 0, x: 40 },
@@ -168,10 +172,7 @@ export function BookingWizard({ onClose, standalone, initialServiceId }: Booking
                 <StepPayment
                   booking={booking}
                   depositAmount={depositAmount}
-                  onPaymentSuccess={(orderId) => {
-                    update({ depositOrderId: orderId });
-                    setStep(5);
-                  }}
+                  sandbox={payments.sandbox}
                   onBack={() => setStep(3)}
                 />
               )}

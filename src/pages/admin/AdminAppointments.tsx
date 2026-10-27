@@ -19,6 +19,36 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { salonConfig } from '@/config/salon';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePlan } from '@/hooks/usePlan';
+import { awaitsSalonConfirmation, isExpiredDepositHold } from '@/lib/deposit';
+
+// Stan zaliczki przy wizycie; zwrot robi się w panelu Tpay, tu salon tylko go odnotowuje
+function DepositInfo({ appt, onMarkRefunded }: { appt: Appointment; onMarkRefunded: (a: Appointment) => void }) {
+  const s = appt.depositStatus === 'awaiting_payment' && isExpiredDepositHold(appt) ? 'expired' : appt.depositStatus;
+  if (!s || s === 'none') return null;
+  const amount = appt.depositAmount ? `${appt.depositAmount} zł` : '';
+  const tx = appt.depositOrderId ? ` · Tpay ${appt.depositOrderId}` : '';
+  const label: Record<string, string> = {
+    pending: `💳 Zaliczka ${amount} oczekuje`,
+    awaiting_payment: `⏳ Klientka płaci zaliczkę ${amount}`,
+    paid: `✅ Zaliczka ${amount}`,
+    underpaid: `⚠️ Wpłata niższa niż zaliczka`,
+    expired: `⌛ Zaliczka nieopłacona`,
+    refunded: `↩️ Zaliczka zwrócona`,
+  };
+  return (
+    <div className="mt-1 space-y-0.5">
+      <p className="text-xs" title={tx ? `Numer transakcji${tx}` : undefined}>{label[s] ?? s}</p>
+      {appt.depositLate && s === 'paid' && (
+        <p className="text-[11px] text-amber-700">Wpłata przyszła po czasie, sprawdź, czy termin jest wolny</p>
+      )}
+      {s === 'paid' && appt.status === 'cancelled' && (
+        <button className="text-[11px] text-primary hover:underline" onClick={() => onMarkRefunded(appt)}>
+          Zwrot wykonany w Tpay? Oznacz
+        </button>
+      )}
+    </div>
+  );
+}
 
 const statusLabels: Record<Appointment['status'], string> = {
   pending: 'Oczekuje',
@@ -91,6 +121,7 @@ const AdminAppointments = () => {
       const service = serviceMap.get(appt.serviceId);
       const employee = employeeMap.get(appt.employeeId);
       if (statusFilter !== 'all' && appt.status !== statusFilter) return false;
+      if (statusFilter === 'pending' && !awaitsSalonConfirmation(appt)) return false;
       if (employeeFilter !== 'all' && appt.employeeId !== employeeFilter) return false;
       if (serviceFilter !== 'all' && appt.serviceId !== serviceFilter) return false;
       if (timeFilter === 'upcoming' && new Date(appt.date) < now) return false;
@@ -149,6 +180,13 @@ const AdminAppointments = () => {
         toast.error('Błąd wysyłania SMS z opinią');
       }
     }
+  };
+
+  const markDepositRefunded = async (appt: Appointment) => {
+    try {
+      await updateAppointment(appt.id, { depositStatus: 'refunded' });
+      toast.success('Zwrot zaliczki odnotowany');
+    } catch { toast.error('Błąd zapisu'); }
   };
 
   const handleStatusChange = async (appt: Appointment, status: Appointment['status']) => {
@@ -287,6 +325,7 @@ const AdminAppointments = () => {
                     <td className="p-3">
                       <p>{service?.name}</p>
                       <p className="text-xs text-muted-foreground">{appt.duration} min · {service?.price} zł</p>
+                      <DepositInfo appt={appt} onMarkRefunded={markDepositRefunded} />
                     </td>
                     <td className="p-3">{employee?.name}</td>
                     <td className="p-3">

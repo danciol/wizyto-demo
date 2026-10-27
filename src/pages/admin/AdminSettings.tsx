@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Settings, CreditCard, Loader2, Save, MessageSquare, ExternalLink, Images, Star, Code, Copy, Check } from 'lucide-react';
 import { useSettings } from '@/hooks/useFirestore';
 import { usePlan } from '@/hooks/usePlan';
+import { usePayments } from '@/hooks/usePayments';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +10,7 @@ import { toast } from 'sonner';
 
 const AdminSettings = () => {
   const { depositAmount, textBeeApiKey, textBeeDeviceId, cloudinaryCloudName, cloudinaryUploadPreset, googleReviewsUrl, loading, saveDepositAmount, saveTextBee, saveCloudinary, saveGoogleReviews } = useSettings();
+  const payments = usePayments();
   const { can } = usePlan();
 
   const [depositValue, setDepositValue] = useState('');
@@ -73,10 +75,17 @@ const AdminSettings = () => {
           </div>
           <p className="text-xs text-muted-foreground">{depositValue && Number(depositValue) > 0 ? `Klientka zapłaci ${depositValue} zł zaliczki` : 'Brak zaliczki'}</p>
         </div>
-        {depositAmount > 0 ? (
-          <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-sm">✅ Aktywna zaliczka: <strong>{depositAmount} zł</strong></div>
+        <p className="text-xs text-muted-foreground">Kwotę możesz też ustawić osobno dla każdej usługi — ma wtedy pierwszeństwo przed tą domyślną.</p>
+        {payments.loading ? null : !payments.enabled ? (
+          <div className="p-3 rounded-lg bg-secondary/50 border border-border text-sm text-muted-foreground">
+            ℹ️ Płatności Tpay nie są jeszcze podłączone, więc klientki rezerwują bez zaliczki. Napisz do nas, aby je uruchomić.
+          </div>
+        ) : depositAmount > 0 ? (
+          <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-sm">
+            ✅ Aktywna zaliczka: <strong>{depositAmount} zł</strong>, płatność przez Tpay{payments.sandbox ? ' (tryb testowy)' : ''}
+          </div>
         ) : (
-          <div className="p-3 rounded-lg bg-secondary/50 border border-border text-sm text-muted-foreground">ℹ️ Zaliczka wyłączona</div>
+          <div className="p-3 rounded-lg bg-secondary/50 border border-border text-sm text-muted-foreground">ℹ️ Zaliczka domyślnie wyłączona (Tpay podłączone{payments.sandbox ? ', tryb testowy' : ''})</div>
         )}
       </div>
 

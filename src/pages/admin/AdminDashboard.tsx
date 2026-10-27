@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import type { Appointment } from '@/data/services';
 import { sendSms, isTextBeeConfigured } from '@/lib/textbee';
+import { awaitsSalonConfirmation } from '@/lib/deposit';
 
 const statusLabels: Record<string, string> = {
   pending: 'Oczekuje',
@@ -31,7 +32,10 @@ const statusColors: Record<string, string> = {
 const depositLabels: Record<string, string> = {
   none: '',
   pending: '💳 Zaliczka oczekuje',
+  awaiting_payment: '⏳ Klientka płaci zaliczkę',
   paid: '✅ Zaliczka zapłacona',
+  underpaid: '⚠️ Zaliczka niepełna',
+  expired: '⌛ Zaliczka nieopłacona',
   refunded: '↩️ Zwrócona',
 };
 
@@ -81,7 +85,7 @@ const AdminDashboard = () => {
 
   const pendingAppointments = useMemo(
     () => [...appointments]
-      .filter(a => a.status === 'pending')
+      .filter(awaitsSalonConfirmation)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
     [appointments]
   );

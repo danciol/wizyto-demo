@@ -17,6 +17,7 @@ import AppointmentDialog, { formatPhoneNumber } from '@/components/admin/Appoint
 import { NativeSelect } from '@/components/ui/native-select';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { isExpiredDepositHold } from '@/lib/deposit';
 
 const HOUR_HEIGHT = 64;
 const hours = Array.from({ length: 17 }, (_, i) => i + 6);
@@ -135,6 +136,7 @@ const AdminCalendar = () => {
   ).filter(e => (e.role || 'pracownik') !== 'salon');
 
   const filteredAppointments = appointments.filter(a => {
+    if (isExpiredDepositHold(a)) return false; // nieopłacona zaliczka — termin wolny
     if (!visibleEmployees.map(e => e.id).includes(a.employeeId)) return false;
     if (filterEmployeeId !== 'all' && a.employeeId !== filterEmployeeId) return false;
     return true;

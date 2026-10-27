@@ -26,6 +26,7 @@ import AdminDaysOff from "./pages/admin/AdminDaysOff";
 import AdminTimeBlocks from "./pages/admin/AdminTimeBlocks";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import BookingWidget from "./pages/BookingWidget";
+import PaymentReturn from "./pages/PaymentReturn";
 import { AdminLayout } from "./components/admin/AdminLayout";
 
 const queryClient = new QueryClient();
@@ -50,6 +51,7 @@ const App = () => {
                 <Route path="/" element={<Index />} />
                 <Route path="/widget" element={<BookingWidget />} />
                 <Route path="/polityka-prywatnosci" element={<PrivacyPolicy />} />
+                <Route path="/rezerwacja/platnosc" element={<PaymentReturn />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<AdminDashboard />} />

@@ -2,83 +2,42 @@ import { useState } from 'react';
 import { CreditCard, Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BookingData } from './BookingWizard';
+import { createBookingAppointment } from '@/lib/booking';
+import { DEPOSIT_HOLD_MIN } from '@/lib/deposit';
 
 interface Props {
   booking: BookingData;
   depositAmount: number;
-  onPaymentSuccess: (orderId: string) => void;
+  sandbox: boolean;
   onBack: () => void;
 }
 
-// ─── Sandbox Przelewy24 ──────────────────────────────────────────────────────
-// Prawdziwe klucze podmień w .env gdy będziesz miał konto P24
-const P24_SANDBOX = true;
-const P24_MERCHANT_ID = 'SANDBOX_MERCHANT_ID';
-const P24_POS_ID = 'SANDBOX_MERCHANT_ID';
-const P24_API_KEY = 'SANDBOX_API_KEY';
-const P24_CRC = 'SANDBOX_CRC';
-
-export function StepPayment({ booking, depositAmount, onPaymentSuccess, onBack }: Props) {
+// Zapisuje rezerwację (blokuje termin na DEPOSIT_HOLD_MIN minut) i przekierowuje do bramki Tpay.
+// O opłaceniu decyduje serwer po powiadomieniu z Tpay — klientka wraca na /rezerwacja/platnosc.
+export function StepPayment({ booking, depositAmount, sandbox, onBack }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [appointmentId, setAppointmentId] = useState<string | null>(null);
 
   const handlePayment = async () => {
     setLoading(true);
     setError(null);
-
     try {
-      // W trybie sandbox symulujemy rejestrację transakcji
-      if (P24_SANDBOX && P24_MERCHANT_ID === 'SANDBOX_MERCHANT_ID') {
-        // TRYB DEMO — symulacja płatności bez prawdziwego API
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const fakeOrderId = `SANDBOX-${Date.now()}`;
-        onPaymentSuccess(fakeOrderId);
-        return;
-      }
+      // Przy ponownej próbie używamy tej samej rezerwacji, żeby nie blokować dwóch terminów
+      const id = appointmentId ?? await createBookingAppointment(booking, { awaitingDeposit: true });
+      setAppointmentId(id);
 
-      // ── Prawdziwa integracja P24 (aktywna gdy podmienisz klucze) ──
-      const baseUrl = window.location.origin;
-      const sessionId = `majli-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-      const body = {
-        merchantId: Number(P24_MERCHANT_ID),
-        posId: Number(P24_POS_ID),
-        sessionId,
-        amount: depositAmount * 100, // P24 przyjmuje grosze
-        currency: 'PLN',
-        description: `Zaliczka na wizytę — ${booking.service?.name}`,
-        email: booking.clientEmail,
-        client: booking.clientName,
-        phone: booking.clientPhone,
-        country: 'PL',
-        language: 'pl',
-        urlReturn: `${baseUrl}/booking/success?session=${sessionId}`,
-        urlStatus: `${baseUrl}/api/p24/notify`,
-        sign: P24_CRC, // prawdziwy sign generuj przez sha384 na backendzie
-      };
-
-      const apiBase = 'https://sandbox.przelewy24.pl/api/v1';
-      const res = await fetch(`${apiBase}/transaction/register`, {
+      const res = await fetch('/api/payments/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${btoa(`${P24_POS_ID}:${P24_API_KEY}`)}`,
-        },
-        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId: id }),
       });
+      const data = await res.json().catch(() => ({})) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error || 'Nie udało się rozpocząć płatności');
 
-      const data = await res.json();
-
-      if (!res.ok || !data.data?.token) {
-        throw new Error(data.error || 'Błąd rejestracji płatności');
-      }
-
-      // Przekieruj klienta do bramki P24
-      window.location.href = `${apiBase}/transaction/0/${data.data.token}`;
-
+      window.location.href = data.url;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Wystąpił błąd płatności');
-    } finally {
       setLoading(false);
     }
   };
@@ -109,15 +68,19 @@ export function StepPayment({ booking, depositAmount, onPaymentSuccess, onBack }
           <span className="font-bold text-primary text-lg">{depositAmount} zł</span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Pozostałe {(booking.service?.price ?? 0) - depositAmount} zł płatne w salonie
+          Pozostałe {Math.max(0, (booking.service?.price ?? 0) - depositAmount)} zł płatne w salonie
         </p>
       </div>
 
-      {P24_SANDBOX && P24_MERCHANT_ID === 'SANDBOX_MERCHANT_ID' && (
+      <p className="text-xs text-muted-foreground text-center">
+        Termin rezerwujemy dla Ciebie na {DEPOSIT_HOLD_MIN} minut. Jeśli w tym czasie zaliczka nie wpłynie, termin wróci do wolnych.
+      </p>
+
+      {sandbox && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-accent/10 border border-accent/20">
           <AlertCircle className="w-4 h-4 text-accent mt-0.5 shrink-0" />
           <p className="text-xs text-accent-foreground">
-            <strong>Tryb testowy</strong> — płatność jest symulowana. Aby aktywować prawdziwe płatności, dodaj klucze Przelewy24 w ustawieniach.
+            <strong>Tryb testowy Tpay</strong> — prawdziwe pieniądze nie zostaną pobrane.
           </p>
         </div>
       )}
@@ -131,7 +94,7 @@ export function StepPayment({ booking, depositAmount, onPaymentSuccess, onBack }
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground justify-center">
         <ShieldCheck className="w-3.5 h-3.5" />
-        Bezpieczna płatność przez Przelewy24
+        Bezpieczna płatność przez Tpay
       </div>
 
       <div className="space-y-2">
@@ -141,13 +104,16 @@ export function StepPayment({ booking, depositAmount, onPaymentSuccess, onBack }
           className="w-full bg-primary text-primary-foreground font-semibold"
         >
           {loading
-            ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Przetwarzanie...</>
+            ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Przechodzę do płatności...</>
             : `Zapłać ${depositAmount} zł zaliczki`
           }
         </Button>
-        <Button variant="ghost" onClick={onBack} disabled={loading} className="w-full">
-          Wróć
-        </Button>
+        {/* Po zapisaniu rezerwacji cofnięcie zmieniłoby dane już zablokowanego terminu */}
+        {!appointmentId && (
+          <Button variant="ghost" onClick={onBack} disabled={loading} className="w-full">
+            Wróć
+          </Button>
+        )}
       </div>
     </div>
   );

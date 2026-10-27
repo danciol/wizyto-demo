@@ -4,6 +4,7 @@ import { pl } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight as ChevronRightIcon, Clock } from 'lucide-react';
 import { Employee, Appointment } from '@/data/services';
 import { Button } from '@/components/ui/button';
+import { isExpiredDepositHold } from '@/lib/deposit';
 
 interface Props {
   employee: Employee;
@@ -59,7 +60,7 @@ function generateSlots(employee: Employee, date: Date, duration: number, appoint
 
   const dayAppts = appointments.filter(a => {
     const aDate = new Date(a.date);
-    return a.employeeId === employee.id && isSameDay(aDate, date) && a.status !== 'cancelled';
+    return a.employeeId === employee.id && isSameDay(aDate, date) && a.status !== 'cancelled' && !isExpiredDepositHold(a);
   });
 
   const slots: string[] = [];

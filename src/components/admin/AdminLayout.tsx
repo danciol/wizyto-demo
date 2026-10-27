@@ -9,6 +9,7 @@ import { PwaInstallBanner } from './PwaInstallBanner';
 import { useAppointments, useWaitingList } from '@/hooks/useFirestore';
 import { usePlan } from '@/hooks/usePlan';
 import type { FeatureKey } from '@/config/plans';
+import { awaitsSalonConfirmation } from '@/lib/deposit';
 
 interface NavLink {
   to: string;
@@ -52,7 +53,7 @@ export function AdminLayout() {
   if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
 
   const role = employee?.role || 'pracownik';
-  const pendingCount = appointments.filter(a => a.status === 'pending').length;
+  const pendingCount = appointments.filter(awaitsSalonConfirmation).length;
 
   const visibleLinks = allLinks.filter(l => {
     if (!l.roles.includes(role)) return false;

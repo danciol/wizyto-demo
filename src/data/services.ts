@@ -54,8 +54,14 @@ export interface Appointment {
   createdAt: string;
   updatedAt?: string;
   depositAmount?: number;
-  depositStatus?: 'none' | 'pending' | 'paid' | 'refunded';
-  depositOrderId?: string;
+  // awaiting_payment = termin zablokowany, klientka jest w bramce Tpay; expired = nie zapłaciła na czas;
+  // underpaid = wpłata niższa niż zaliczka (do wyjaśnienia przez salon)
+  depositStatus?: 'none' | 'pending' | 'awaiting_payment' | 'paid' | 'underpaid' | 'expired' | 'refunded';
+  depositOrderId?: string;      // tytuł transakcji Tpay (tr_id), widoczny w panelu Tpay
+  depositPaidAt?: string;
+  depositLate?: boolean;        // wpłata przyszła po wygaśnięciu blokady terminu
+  paymentSessionId?: string;
+  paymentTransactionId?: string;
   reviewSmsSent?: boolean;
   importSource?: string;
 }
