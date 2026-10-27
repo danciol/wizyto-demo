@@ -40,6 +40,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     const base = siteUrl(req);
     const returnUrl = `${base}/rezerwacja/platnosc?id=${encodeURIComponent(appointmentId)}`;
+    // Podgląd na Vercelu jest chroniony logowaniem — Tpay przepuszcza tylko klucz "Protection Bypass for Automation"
+    const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    const notificationUrl = `${base}/api/payments/notify${bypass ? `?x-vercel-protection-bypass=${encodeURIComponent(bypass)}` : ''}`;
     const { url, transactionId } = await createTransaction(cfg, {
       amount,
       description: `Zaliczka: ${service?.name ?? 'wizyta'}`,
@@ -49,7 +52,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       phone: appt.clientPhone,
       successUrl: returnUrl,
       errorUrl: returnUrl,
-      notificationUrl: `${base}/api/payments/notify`,
+      notificationUrl,
     });
     if (transactionId) await ref.update({ paymentTransactionId: transactionId });
     return res.status(200).json({ url });
