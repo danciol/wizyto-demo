@@ -16,8 +16,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const jws = req.headers['x-jws-signature'] as string | undefined;
 
   try {
-    if (!(await isValidJws(cfg, jws, rawBody)) || !isValidMd5(cfg, n)) {
-      console.warn('payments/notify: odrzucone powiadomienie', n.get('tr_id'));
+    // JWS jest obowiązkowy; md5sum sprawdzamy dodatkowo, gdy salon podał kod bezpieczeństwa
+    const jwsOk = await isValidJws(cfg, jws, rawBody);
+    const md5Ok = cfg.securityCode ? isValidMd5(cfg, n) : true;
+    if (!jwsOk || !md5Ok) {
+      console.warn('payments/notify: odrzucone powiadomienie', JSON.stringify({
+        trId: n.get('tr_id'), jwsOk, md5Ok, hasJws: !!jws, bodyLength: rawBody.length,
+        x5u: jws ? safeX5u(jws) : null,
+      }));
       return res.status(400).send('FALSE - Invalid signature');
     }
 
@@ -63,6 +69,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     console.error('payments/notify', err);
     return res.status(500).send('FALSE'); // Tpay spróbuje ponownie
   }
+}
+
+function safeX5u(jws: string): string | null {
+  try {
+    return (JSON.parse(Buffer.from(jws.split('.')[0], 'base64url').toString('utf8')) as { x5u?: string }).x5u ?? null;
+  } catch { return null; }
 }
 
 function readRawBody(req: ApiRequest): Promise<Buffer> {

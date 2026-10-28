@@ -2,7 +2,7 @@ import { createHash, createVerify, X509Certificate } from 'node:crypto';
 
 // Konto Tpay salonu — zmienne środowiskowe projektu na Vercelu:
 //   TPAY_CLIENT_ID, TPAY_CLIENT_SECRET  (Panel Tpay → Integracja → API → Klucze Open API)
-//   TPAY_SECURITY_CODE                  (Panel Tpay → Powiadomienia → Bezpieczeństwo; puste, jeśli nieustawiony)
+//   TPAY_SECURITY_CODE                  (opcjonalnie: Panel Tpay → Powiadomienia → Bezpieczeństwo; gdy podany, sprawdzamy też md5sum)
 //   TPAY_SANDBOX=true                   na koncie testowym (panel.sandbox.tpay.com)
 export interface TpayConfig {
   clientId: string;
