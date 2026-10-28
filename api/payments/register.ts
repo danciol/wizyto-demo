@@ -1,7 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http.js';
 import { siteUrl } from '../_lib/http.js';
 import { adminDb } from '../_lib/firebaseAdmin.js';
-import { createTransaction, tpayConfig } from '../_lib/tpay.js';
+import { createTransaction, tpayConfig, TpayError } from '../_lib/tpay.js';
 import { isExpiredDepositHold, resolveDepositAmount } from '../../src/lib/deposit.js';
 
 // POST { appointmentId } → { url } adres bramki Tpay.
@@ -58,6 +58,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return res.status(200).json({ url });
   } catch (err) {
     console.error('payments/register', err);
+    if (err instanceof TpayError && err.codes.includes('not_email')) {
+      // Klientka wraca do formularza i zakłada nową rezerwację — tę zwalniamy od razu
+      await adminDb().collection('appointments').doc(appointmentId)
+        .update({ status: 'cancelled', depositStatus: 'expired', updatedAt: new Date().toISOString() })
+        .catch(() => {});
+      return res.status(422).json({ code: 'invalid_email', error: 'Operator płatności nie przyjął tego adresu e-mail. Wróć i popraw go.' });
+    }
     return res.status(502).json({ error: 'Nie udało się rozpocząć płatności. Spróbuj ponownie.' });
   }
 }

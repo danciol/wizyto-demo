@@ -32,7 +32,9 @@ export function StepPayment({ booking, depositAmount, sandbox, onBack }: Props) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: id }),
       });
-      const data = await res.json().catch(() => ({})) as { url?: string; error?: string };
+      const data = await res.json().catch(() => ({})) as { url?: string; error?: string; code?: string };
+      // Serwer zwolnił już termin — pozwalamy wrócić do formularza i założyć rezerwację od nowa
+      if (data.code === 'invalid_email') setAppointmentId(null);
       if (!res.ok || !data.url) throw new Error(data.error || 'Nie udało się rozpocząć płatności');
 
       window.location.href = data.url;
@@ -77,9 +79,9 @@ export function StepPayment({ booking, depositAmount, sandbox, onBack }: Props) 
       </p>
 
       {sandbox && (
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-accent/10 border border-accent/20">
-          <AlertCircle className="w-4 h-4 text-accent mt-0.5 shrink-0" />
-          <p className="text-xs text-accent-foreground">
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800">
+          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-xs text-amber-900 dark:text-amber-100">
             <strong>Tryb testowy Tpay</strong> — prawdziwe pieniądze nie zostaną pobrane.
           </p>
         </div>

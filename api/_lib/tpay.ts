@@ -45,6 +45,13 @@ async function accessToken(cfg: TpayConfig): Promise<string> {
   return data.access_token;
 }
 
+/** Błąd z API Tpay razem z kodami błędów (np. 'not_email'), żeby dało się pokazać klientce, co poprawić. */
+export class TpayError extends Error {
+  constructor(message: string, readonly codes: string[]) {
+    super(message);
+  }
+}
+
 export interface CreateTransactionInput {
   amount: number; // zł
   description: string;
@@ -74,9 +81,12 @@ export async function createTransaction(cfg: TpayConfig, input: CreateTransactio
       },
     }),
   });
-  const data = await res.json().catch(() => ({})) as { result?: string; transactionId?: string; transactionPaymentUrl?: string };
+  const data = await res.json().catch(() => ({})) as {
+    result?: string; transactionId?: string; transactionPaymentUrl?: string;
+    errors?: { errorCode?: string; fieldName?: string }[];
+  };
   if (!res.ok || data.result !== 'success' || !data.transactionPaymentUrl) {
-    throw new Error(`Tpay transactions ${res.status}: ${JSON.stringify(data)}`);
+    throw new TpayError(`Tpay transactions ${res.status}: ${JSON.stringify(data)}`, data.errors?.map(e => e.errorCode ?? '') ?? []);
   }
   return { url: data.transactionPaymentUrl, transactionId: data.transactionId ?? '' };
 }

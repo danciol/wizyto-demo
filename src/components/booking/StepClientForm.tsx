@@ -23,7 +23,8 @@ export function StepClientForm({ booking, onSubmit, onBack }: Props) {
     if (!phone.trim()) errs.phone = 'Numer telefonu jest wymagany';
     else if (!/^[\d\s+\-()]{7,15}$/.test(phone.trim())) errs.phone = 'Nieprawidłowy numer telefonu';
     if (!email.trim()) errs.email = 'Email jest wymagany';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errs.email = 'Nieprawidłowy adres email';
+    // Końcówka domeny z samych liter (np. .pl, .com) — operator płatności odrzuca adresy typu "a@b.2d"
+    else if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email.trim())) errs.email = 'Nieprawidłowy adres email';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
