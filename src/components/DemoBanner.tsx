@@ -9,7 +9,7 @@ export function DemoBanner() {
       <div className="flex items-center justify-between px-4 py-2 max-w-6xl mx-auto">
         <div className="flex items-center gap-2 text-sm font-medium">
           <Zap className="w-4 h-4 shrink-0" />
-          <span>Wersja demonstracyjna Velianow — dane resetują się każdej nocy.{' '}
+          <span>Wersja demonstracyjna Velianow — płatności działają w trybie testowym, bez pobierania pieniędzy.{' '}
             <a href="https://www.velianow.pl" target="_blank" rel="noopener noreferrer" className="underline font-bold hover:text-amber-100">
               Kup teraz i zacznij za darmo →
             </a>
