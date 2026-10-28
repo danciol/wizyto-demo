@@ -25,7 +25,7 @@ const WORKING_HOURS = {
 };
 
 const EMPLOYEES = [
-  { id: 'admin', name: 'Admin Demo',          role: 'admin',     login: 'admin@demo.wizyto.pl', password: 'demo2026', workingHours: WORKING_HOURS, daysOff: [], canViewCalendars: [] },
+  { id: 'admin', name: 'Admin Demo',          role: 'admin',     login: 'admin@demo.velianow.pl', password: 'demo2026', workingHours: WORKING_HOURS, daysOff: [], canViewCalendars: [] },
   { id: 'e1',    name: 'Anna Kowalska',        role: 'pracownik', login: 'anna',                 password: 'demo2026', workingHours: WORKING_HOURS, daysOff: [], canViewCalendars: [] },
   { id: 'e2',    name: 'Karolina Wiśniewska',  role: 'pracownik', login: 'karolina',             password: 'demo2026', workingHours: WORKING_HOURS, daysOff: [], canViewCalendars: [] },
   { id: 'e3',    name: 'Marta Nowak',          role: 'pracownik', login: 'marta',                password: 'demo2026', workingHours: WORKING_HOURS, daysOff: [], canViewCalendars: [] },
