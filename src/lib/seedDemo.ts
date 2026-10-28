@@ -12,7 +12,12 @@ const SERVICES = [
   { id: 's7', name: 'Uzupełnienie rzęs',    price: 130, duration: 90,  category: 'rzesy',    employees: ['e3'],       active: true, selfBooking: true },
   { id: 's8', name: 'Henna brwi',           price: 60,  duration: 30,  category: 'brwi',     employees: ['e1', 'e3'], active: true, selfBooking: true },
   { id: 's9', name: 'Laminowanie brwi',     price: 120, duration: 60,  category: 'brwi',     employees: ['e3'],       active: true, selfBooking: true },
-];
+].map(s => ({ ...s, depositAmount: demoDeposit(s.price) }));
+
+// Zaliczka w demo: ok. 20% ceny, zaokrąglone w górę do pełnych 5 zł (np. 80 zł → 20 zł, 120 zł → 25 zł)
+export function demoDeposit(price: number): number {
+  return Math.ceil(price / 25) * 5;
+}
 
 const WORKING_HOURS = {
   monday: '9:00-17:00', tuesday: '9:00-17:00', wednesday: '9:00-17:00',
