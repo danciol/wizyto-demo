@@ -96,6 +96,18 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
+    /* Miejsce na pasek wersji demo (0 poza demo) */
+    padding-top: var(--demo-banner-h, 0px);
+  }
+  /* Element + klasa, żeby wygrać z top-0 / inset-y-0 z Tailwinda */
+  nav.below-demo-banner {
+    top: var(--demo-banner-h, 0px);
+  }
+  /* Panel boczny jest przyklejony tylko na telefonie (od md jest w normalnym układzie strony) */
+  @media (max-width: 767.98px) {
+    aside.below-demo-banner {
+      top: var(--demo-banner-h, 0px);
+    }
   }
 
   h1, h2, h3, h4, h5, h6 {

@@ -19,7 +19,7 @@ export function HeroSection({ onBooking }: HeroProps) {
           width={1920}
           height={1080}
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-foreground/70 via-foreground/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-foreground/80 via-foreground/55 to-foreground/5" />
       </div>
 
       {/* Content */}

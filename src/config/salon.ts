@@ -13,14 +13,19 @@ export const salonConfig = {
   address: 'ul. Kwiatowa 12, Kraków',
   city: 'Kraków',
 
+  // Pudrowy róż i złoto, dobrane do wnętrza na zdjęciu salonu
   colors: {
-    primary: '150 40% 35%',
-    primaryDark: '150 40% 25%',
-    accent: '42 70% 50%',
-    accentLight: '42 60% 70%',
-    accentDark: '42 60% 35%',
-    background: '120 15% 97%',
-    secondary: '120 20% 92%',
+    primary: '345 42% 46%',
+    primaryDark: '345 42% 36%',
+    accent: '40 62% 48%',
+    accentLight: '40 60% 72%',
+    accentDark: '38 55% 34%',
+    background: '20 33% 97%',
+    secondary: '350 35% 93%',
+    foreground: '345 22% 14%',
+    muted: '350 25% 95%',
+    mutedForeground: '345 10% 42%',
+    border: '350 22% 87%',
   },
 
   social: {
